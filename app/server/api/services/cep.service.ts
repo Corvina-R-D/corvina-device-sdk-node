@@ -107,7 +107,7 @@ export class CEPService {
     }
 
     async post(name: string): Promise<void> {
-        await this.init();
+        //await this.init();
         L.info(`create example with name `, this.licenseData);
         return Promise.resolve();
     }

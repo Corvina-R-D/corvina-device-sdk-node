@@ -13,7 +13,7 @@ FROM node:9.11.2-stretch
 ENV LANG C.UTF-8
 
 WORKDIR /app
-COPY --from=builder /app/dist/* ./
+COPY --from=builder /app/ ./
 
-CMD ["node", "/app/index.js"]
+CMD ["node", "/app/dist/index.js"]
 
