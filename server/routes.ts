@@ -1,5 +1,5 @@
 import { Application } from 'express';
-import examplesRouter from './api/controllers/examples/router'
+import cepRouter from './api/controllers/cep/router'
 export default function routes(app: Application): void {
-  app.use('/api/v1/examples', examplesRouter);
+  app.use('/', cepRouter);
 };
