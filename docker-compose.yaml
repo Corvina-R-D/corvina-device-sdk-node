@@ -5,12 +5,12 @@ services:
     ports:
       - "18080:3000"
     extra_hosts:
-      - "corvina.fog:127.0.0.1"
-      - "app.corvina.fog:127.0.0.1"
-      - "auth.corvina.fog:127.0.0.1"
-      - "licenses.corvina.fog:127.0.0.1"
-      - "pairing.corvina.fog:127.0.0.1"
-      - "broker.corvina.fog:127.0.0.1"
-      - "appengine.api.platform.corvina.fog:127.0.0.1"
-      - "api.platform.corvina.fog:127.0.0.1"
+      - "corvina.fog:10.10.10.225"
+      - "app.corvina.fog:10.10.10.225"
+      - "auth.corvina.fog:10.10.10.225"
+      - "licenses.corvina.fog:10.10.10.225"
+      - "pairing.corvina.fog:10.10.10.225"
+      - "broker.corvina.fog:10.10.10.225"
+      - "appengine.api.platform.corvina.fog:10.10.10.225"
+      - "api.platform.corvina.fog:10.10.10.225"
     restart: always
