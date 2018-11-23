@@ -260,10 +260,15 @@ export class CEPService {
 
     async init(): Promise<boolean> {
         if (this.inited == false && this.initPending == null) {
-            // do the async call
-            this.initPending = this._asyncInit();
-            await this.initPending;
-            this.initPending = null;
+            try {
+	        // do the async call
+                this.initPending = this._asyncInit();
+                await this.initPending;
+                this.initPending = null;
+            } catch(err) {
+                this.inited = false;
+                this.initPending = null;
+            }
         }
         return this.inited;
     }
