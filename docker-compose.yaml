@@ -1,0 +1,16 @@
+version: '2'
+services:
+  corvina-node-device:
+    image: corvina-node-device
+    ports:
+      - "18080:3000"
+    extra_hosts:  corvina.fog app.corvina.fog auth.corvina.fog licenses.corvina.fog pairing.corvina.fog broker.corvina.fog appengine.api.platform.corvina.fog api.platform.corvina.fog
+      - "corvina.fog:127.0.0.1"
+      - "app.corvina.fog:127.0.0.1"
+      - "auth.corvina.fog:127.0.0.1"
+      - "licenses.corvina.fog:127.0.0.1"
+      - "pairing.corvina.fog:127.0.0.1"
+      - "broker.corvina.fog:127.0.0.1"
+      - "appengine.api.platform.corvina.fog:127.0.0.1"
+      - "api.platform.corvina.fog:127.0.0.1"
+    restart: always
