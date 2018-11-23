@@ -252,7 +252,6 @@ export class CEPService {
         } catch (err) {
             console.warn(err)
             this.inited = false;
-            throw (err)
         }
 
         return this.inited;
@@ -274,16 +273,20 @@ export class CEPService {
     }
 
     async post(dataPoints: Array<DataPoint>): Promise<void> {
-        await this.init();
-        for (let dp of dataPoints) {
-            const topic = this.tagToTopicMap.get(dp.tagName)
-            if (!topic) {
-                console.error(`Unknown topic for tag ${dp.tagName}`);
-            } else {
-                const payload = JSON.stringify({ v: dp.value, t: Date.now() })
-                console.log("GOING TO SEND TO TOPIC", topic, payload)
-                await this.mqttClient.publish(topic, payload)
+        try {
+            await this.init();
+            for (let dp of dataPoints) {
+                const topic = this.tagToTopicMap.get(dp.tagName)
+                if (!topic) {
+                    console.error(`Unknown topic for tag ${dp.tagName}`);
+                } else {
+                    const payload = JSON.stringify({ v: dp.value, t: Date.now() })
+                    console.log("GOING TO SEND TO TOPIC", topic, payload)
+                    await this.mqttClient.publish(topic, payload)
+                }
             }
+        } catch(err) {
+            return Promise.reject(err);
         }
         return Promise.resolve();
     }

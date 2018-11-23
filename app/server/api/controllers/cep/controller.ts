@@ -4,7 +4,7 @@ import { Request, Response } from 'express';
 export class Controller {
 
   post(req: Request, res: Response): void {
-
+    try {
     /*
     {
       "series":[
@@ -45,6 +45,9 @@ export class Controller {
           .json("Ok")
       }
     );
+    } catch(err) {
+       res.status(500).json(err)
+    }
   }
 }
 export default new Controller();
