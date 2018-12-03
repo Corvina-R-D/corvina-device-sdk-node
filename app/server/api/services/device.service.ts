@@ -1,7 +1,6 @@
 import L from '../../common/logger'
 import pem from 'pem'
 import LicensesAxiosInstance, { LicenseData, ProtocolData, CrtData } from './licensesaxiosinstance'
-import { resolve, reject } from 'bluebird';
 import mqtt, { IClientOptions, ISecureClientOptions, MqttClient } from 'mqtt';
 import BSON from 'bson'
 import { timingSafeEqual } from 'crypto';
@@ -22,7 +21,63 @@ export interface DataPoint {
     timestamp: number; // posix time
 }
 
-export class CEPService {
+class DataSimulator {
+    private service: DeviceService;
+    private type;
+    private tag;
+    private amplitude;
+    private phase;
+    private period;
+
+    static simulators = new Array<DataSimulator>();
+    static inited = false;
+
+    constructor(tag: string, type : string, service: DeviceService) {
+        this.tag = tag;
+        this.type = type;
+        this.service = service;
+        DataSimulator.simulators.push(this)
+
+        this.amplitude = 500 * Math.random();
+        this.phase = Math.random() * 4 * Math.PI
+        this.period = Math.random() * 30000;
+
+        if (!DataSimulator.inited) {
+            setInterval(() => {
+                DataSimulator.simulators.forEach((value) => { value.loop() })
+            }, 1000);
+            DataSimulator.inited = true;
+        }
+        
+    }
+
+    loop() {
+        console.log("loop!!!")
+        if (this.service.ready()) {
+            const ts = Date.now()
+            let value = null;
+            switch (this.type) {
+                case 'integer':
+                    value = ( Math.random() * this.amplitude ) | 0;
+                    break;
+                case 'double':
+                    value = this.amplitude * Math.sin( this.phase +  ts *  2 * Math.PI / this.period ) 
+                    break;
+                case 'string':
+                    value = Math.random().toString();
+                    break;
+            }
+            this.service.post( [{ tagName: this.tag, value: value, timestamp: ts }] )
+        }
+    }
+
+
+    clear() {
+        DataSimulator.simulators = new Array<DataSimulator>();
+    }
+}
+
+export class DeviceService {
 
     private inited: boolean;
     private initPending: Promise<boolean>;
@@ -36,6 +91,7 @@ export class CEPService {
     private customIntrospections: string;
     private applyConfigTopic: string;
     private configTopic: string;
+    private availableTagsTopic: string;
 
     private lastConfig: string;
 
@@ -49,6 +105,15 @@ export class CEPService {
         this.customIntrospections = "";
         this.lastConfig = "";
         this.init();
+        if (process.env.SIMULATE_TAGS) {
+            JSON.parse(process.env.AVAILABLE_TAGS).forEach(
+                (value) => { new DataSimulator(value.name, value.type, this) }
+            )
+        }
+    }
+
+    public ready() {
+        return this.inited;
     }
 
     private retrieveServerCert(host: string): Promise<any> {
@@ -142,11 +207,16 @@ export class CEPService {
             this.mqttClient.on('connect', (v) => {
                 console.log("Successfully connected to mqtt brokern!", v)
 
-                console.log("published introspection " + CEPService.baseIntrospection + this.customIntrospections)
-                this.publish(this.introspectionTopic, CEPService.baseIntrospection + this.customIntrospections);
+                console.log("published introspection " + DeviceService.baseIntrospection + this.customIntrospections)
+                this.publish(this.introspectionTopic, DeviceService.baseIntrospection + this.customIntrospections);
                 // Empty properties cache
                 console.log("published empty cache")
                 this.publish(this.empyCacheTopic, '1');
+
+
+                console.log(JSON.stringify({ v: process.env.AVAILABLE_TAGS, t: Date.now() }))
+                this.publish(this.availableTagsTopic, JSON.stringify({ v: process.env.AVAILABLE_TAGS, t: Date.now() }))
+
 
 
                 resolve(true);
@@ -243,6 +313,7 @@ export class CEPService {
             this.introspectionTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}`;
             this.applyConfigTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.sub.Config/applyConfiguration`;
             this.configTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/configuration`;
+            this.availableTagsTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/availableTags`;
 
             // connect mqtt
             await this.connectClient(mqtt_protocol.broker_url, csr.clientKey, crt.client_crt);
@@ -250,8 +321,8 @@ export class CEPService {
 
 
         } catch (err) {
-            console.warn(err)
             this.inited = false;
+            throw (err)
         }
 
         return this.inited;
@@ -259,37 +330,36 @@ export class CEPService {
 
     async init(): Promise<boolean> {
         if (this.inited == false && this.initPending == null) {
+            // do the async call
+            this.initPending = this._asyncInit();
             try {
-	        // do the async call
-                this.initPending = this._asyncInit();
                 await this.initPending;
+            } catch (err) {
+                console.error("Error initing: ", err);
                 this.initPending = null;
-            } catch(err) {
-                this.inited = false;
-                this.initPending = null;
+                let randomRetry = 5 + 10*Math.random()
+                console.error(`Retry init in  ${randomRetry} secs`);
+                setTimeout(() => {this.init()}, randomRetry*1000)
             }
+            this.initPending = null;
         }
         return this.inited;
     }
 
     async post(dataPoints: Array<DataPoint>): Promise<void> {
-        try {
-            await this.init();
-            for (let dp of dataPoints) {
-                const topic = this.tagToTopicMap.get(dp.tagName)
-                if (!topic) {
-                    console.error(`Unknown topic for tag ${dp.tagName}`);
-                } else {
-                    const payload = JSON.stringify({ v: dp.value, t: Date.now() })
-                    console.log("GOING TO SEND TO TOPIC", topic, payload)
-                    await this.mqttClient.publish(topic, payload)
-                }
+        await this.init();
+        for (let dp of dataPoints) {
+            const topic = this.tagToTopicMap.get(dp.tagName)
+            if (!topic) {
+                console.error(`Unknown topic for tag ${dp.tagName}`);
+            } else {
+                const payload = JSON.stringify({ v: dp.value, t: Date.now() })
+                console.log("GOING TO SEND TO TOPIC", topic, payload)
+                await this.mqttClient.publish(topic, payload)
             }
-        } catch(err) {
-            return Promise.reject(err);
         }
         return Promise.resolve();
     }
 }
 
-export default new CEPService();
+export default new DeviceService();

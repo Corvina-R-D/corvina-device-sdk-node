@@ -1,5 +1,6 @@
 import { Application } from 'express';
-import cepRouter from './api/controllers/cep/router'
+import deviceRouter from './api/controllers/device/router'
+
 export default function routes(app: Application): void {
-  app.use('/', cepRouter);
+  app.use('/', deviceRouter);
 };

@@ -1,10 +1,11 @@
-import CEPService,  {DataPoint} from '../../services/cep.service';
+import DeviceService,  {DataPoint} from '../../services/device.service';
 import { Request, Response } from 'express';
 
+/** Handles requests from Nebbiolo FOG CEP */
 export class Controller {
 
-  post(req: Request, res: Response): void {
-    try {
+
+  post(req: Request, res: Response, next): void {
     /*
     {
       "series":[
@@ -39,15 +40,14 @@ export class Controller {
         dataPoints.push(dp)
       }
     }
-    CEPService.post(dataPoints).then( (r) => {
+    DeviceService.post(dataPoints).then( (r) => {
         res
           .status(200)
-          .json("Ok")
+          .json(dataPoints)
       }
-    );
-    } catch(err) {
-       res.status(500).json(err)
-    }
+    ).catch( (err) => {
+      next(err)
+    })
   }
 }
 export default new Controller();

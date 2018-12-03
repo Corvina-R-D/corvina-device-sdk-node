@@ -57,6 +57,7 @@ export class LicensesAxiosInstance
     private axiosPairiginInstance : PairingAxiosInstance;
 
     constructor() {
+        console.log("License manager pairing endpoint ", process.env.PAIRING_ENDPOINT)
         this.axiosInstance.defaults.baseURL = process.env.PAIRING_ENDPOINT;
     }
 
