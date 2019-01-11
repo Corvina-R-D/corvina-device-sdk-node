@@ -15,6 +15,18 @@ interface CSRData {
     clientKey: string;
 }
 
+export interface TagDesc {
+    name: string,
+    type: string
+}
+
+export interface DeviceConfig {
+    activationKey ?: string;
+    pairingEndpoint ?: string;
+    availableTags ?: Array<TagDesc>; // json array string 
+    simulateTags ?: boolean;
+}
+
 export interface DataPoint {
     tagName: string; // tag name
     value: any;
@@ -52,7 +64,7 @@ class DataSimulator {
     }
 
     loop() {
-        console.log("loop!!!")
+        //console.log("loop!!!")
         if (this.service.ready()) {
             const ts = Date.now()
             let value = null;
@@ -97,16 +109,34 @@ export class DeviceService {
 
     private tagToTopicMap: Map<string, string>;
 
+    private deviceConfig: DeviceConfig;
+    private axios: LicensesAxiosInstance;
+
 
     constructor() {
+        this.deviceConfig = {}
+        this.reinit(
+            {
+                activationKey: process.env.ACTIVATION_KEY,
+                pairingEndpoint: process.env.PAIRING_ENDPOINT,
+                availableTags: (() => { try { return JSON.parse(process.env.AVAILABLE_TAGS) } catch(err) { return []} }) (),
+                simulateTags: !! (() => { try { return JSON.parse(process.env.SIMULATE_TAGS) } catch(err) { return []} }) () 
+            })
+    }
+
+    getDeviceConfig() { return this.deviceConfig }
+
+    public  reinit(deviceConfig: DeviceConfig) {
         this.inited = false;
         this.initPending = null;
         this.licenseData = {} as LicenseData;
         this.customIntrospections = "";
         this.lastConfig = "";
+        Object.assign(this.deviceConfig, deviceConfig)
+        this.axios = new LicensesAxiosInstance(this.deviceConfig.pairingEndpoint, this.deviceConfig.activationKey)
         this.init();
-        if (process.env.SIMULATE_TAGS) {
-            JSON.parse(process.env.AVAILABLE_TAGS).forEach(
+        if (this.deviceConfig.simulateTags) {
+            this.deviceConfig.availableTags.forEach(
                 (value) => { new DataSimulator(value.name, value.type, this) }
             )
         }
@@ -279,7 +309,7 @@ export class DeviceService {
 
     async _asyncInit(): Promise<boolean> {
         try {
-            this.licenseData = await LicensesAxiosInstance.init();
+            this.licenseData = await this.axios.init();
             console.log("Got api key ", this.licenseData)
             this.inited = true;
 
@@ -289,18 +319,18 @@ export class DeviceService {
             const csr: CSRData = await this.createCSR(this.licenseData.logicalId);
 
             // check connection info
-            const info: ProtocolData = await LicensesAxiosInstance.getInfo(this.licenseData.platformPairingApiUrl, this.licenseData.apiKey, this.licenseData.logicalId)
+            const info: ProtocolData = await this.axios.getInfo(this.licenseData.platformPairingApiUrl, this.licenseData.apiKey, this.licenseData.logicalId)
 
             // is astarte_mqtt_v1 available??
             const mqtt_protocol = info.protocols["astarte_mqtt_v1"]
             assert(mqtt_protocol)
 
             // sign the certificate
-            const crt: CrtData = await LicensesAxiosInstance.doPairing(this.licenseData.platformPairingApiUrl, this.licenseData.apiKey, csr.csr);
+            const crt: CrtData = await this.axios.doPairing(this.licenseData.platformPairingApiUrl, this.licenseData.apiKey, csr.csr);
             console.log(crt)
 
             // verify the certificate
-            assert(await LicensesAxiosInstance.verify(crt.client_crt));
+            assert(await this.axios.verify(crt.client_crt));
 
             /* ************************************* */
 

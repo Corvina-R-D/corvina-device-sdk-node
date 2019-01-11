@@ -2,6 +2,8 @@ version: '2.1'
 services:
   corvina-node-device:
     image: corvina-node-device
+    env_file:
+      - ${DEVICE_ENV_FILE:-device.env}
     ports:
       - "18080:3000"
     network_mode: "host"

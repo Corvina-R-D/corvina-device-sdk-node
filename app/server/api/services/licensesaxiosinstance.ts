@@ -55,14 +55,18 @@ export class LicensesAxiosInstance
 {
     private axiosInstance : AxiosInstance = axios.create();
     private axiosPairiginInstance : PairingAxiosInstance;
+    private actitvationKey: string;
+    private pairingEndpoint: string;
 
-    constructor() {
-        console.log("License manager pairing endpoint ", process.env.PAIRING_ENDPOINT)
-        this.axiosInstance.defaults.baseURL = process.env.PAIRING_ENDPOINT;
+    constructor(pairingEndpoint: string, activationKey: string) {
+        this.pairingEndpoint = pairingEndpoint;
+        this.actitvationKey = activationKey;
+        console.log("License manager pairing endpoint ", this.pairingEndpoint)
+        this.axiosInstance.defaults.baseURL = this.pairingEndpoint;
     }
 
     async init() : Promise<LicenseData> {
-        let config : AxiosRequestConfig = { params: { activationKey: process.env.ACTIVATION_KEY, serialNumber: '' } }
+        let config : AxiosRequestConfig = { params: { activationKey: this.actitvationKey, serialNumber: '' } }
         return this.axiosInstance.get('', config).then( (data : AxiosResponse<LicenseData> ) => {
             this.axiosPairiginInstance = new PairingAxiosInstance(data.data);
             return data.data;
@@ -83,4 +87,4 @@ export class LicensesAxiosInstance
 
 }
 
-export default new LicensesAxiosInstance;
+export default LicensesAxiosInstance;
