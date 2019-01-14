@@ -10,6 +10,9 @@ import { exec } from 'child_process'
 import URL from 'url';
 import { hostname } from 'os';
 
+import fs from 'fs'
+import path from 'path'
+
 interface CSRData {
     csr: string;
     clientKey: string;
@@ -126,7 +129,7 @@ export class DeviceService {
 
     getDeviceConfig() { return this.deviceConfig }
 
-    public  reinit(deviceConfig: DeviceConfig) {
+    public  reinit(deviceConfig: DeviceConfig) : DeviceConfig {
         this.inited = false;
         this.initPending = null;
         this.licenseData = {} as LicenseData;
@@ -140,6 +143,21 @@ export class DeviceService {
                 (value) => { new DataSimulator(value.name, value.type, this) }
             )
         }
+        let envFile = path.join( process.cwd(), '.env' ) 
+        let currentContent = fs.readFileSync(envFile).toString()
+        let appendedValuesPos = currentContent.indexOf("### LAST-ENV ###")
+        if ( appendedValuesPos > 0) {
+            currentContent = currentContent.slice(0, appendedValuesPos)
+            currentContent += `
+### LAST-ENV ###
+# don't write below this line!!
+ACTIVATION_KEY=${this.deviceConfig.activationKey}
+PAIRING_ENDPOINT=${this.deviceConfig.pairingEndpoint}
+AVAILABLE_TAGS=${JSON.stringify(this.deviceConfig.availableTags)}
+SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
+        }
+        fs.writeFileSync(envFile, currentContent)
+        return this.deviceConfig
     }
 
     public ready() {
@@ -185,6 +203,7 @@ export class DeviceService {
     }
 
     private applyConfig(config: any) {
+        console.log(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         if (JSON.stringify(config) == JSON.stringify(this.lastConfig)) {
             console.log("Found same config => return");
             return;
@@ -378,6 +397,10 @@ export class DeviceService {
 
     async post(dataPoints: Array<DataPoint>): Promise<void> {
         await this.init();
+        if (!this.tagToTopicMap) {
+            console.error(`Cannot process ${JSON.stringify(dataPoints) }. Device is not configured yet!`)
+            return;
+        }
         for (let dp of dataPoints) {
             const topic = this.tagToTopicMap.get(dp.tagName)
             if (!topic) {
