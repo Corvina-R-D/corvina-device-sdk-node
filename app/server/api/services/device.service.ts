@@ -131,6 +131,7 @@ export class DeviceService {
 
     public  reinit(deviceConfig: DeviceConfig) : DeviceConfig {
         this.inited = false;
+        try { this.mqttClient.end(); this.mqttClient = null } catch(err) {}
         this.initPending = null;
         this.licenseData = {} as LicenseData;
         this.customIntrospections = "";
@@ -340,8 +341,8 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
             // check connection info
             const info: ProtocolData = await this.axios.getInfo(this.licenseData.platformPairingApiUrl, this.licenseData.apiKey, this.licenseData.logicalId)
 
-            // is astarte_mqtt_v1 available??
-            const mqtt_protocol = info.protocols["astarte_mqtt_v1"]
+            // take first protocol available. Todo: ensures is valid
+            const mqtt_protocol = info.protocols[  Object.keys(info.protocols)[0] ]
             assert(mqtt_protocol)
 
             // sign the certificate
