@@ -87,7 +87,7 @@ class DataSimulator {
     }
 
 
-    clear() {
+    static clear() {
         DataSimulator.simulators = new Array<DataSimulator>();
     }
 }
@@ -132,6 +132,7 @@ export class DeviceService {
     public  reinit(deviceConfig: DeviceConfig) : DeviceConfig {
         this.inited = false;
         try { this.mqttClient.end(); this.mqttClient = null } catch(err) {}
+        DataSimulator.clear();
         this.initPending = null;
         this.licenseData = {} as LicenseData;
         this.customIntrospections = "";
