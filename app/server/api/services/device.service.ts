@@ -96,6 +96,7 @@ export class DeviceService {
 
     private inited: boolean;
     private initPending: Promise<boolean>;
+    private readyToTransmit: boolean;
     private licenseData: LicenseData;
     private mqttClient: MqttClient;
 
@@ -124,14 +125,19 @@ export class DeviceService {
                 pairingEndpoint: process.env.PAIRING_ENDPOINT,
                 availableTags: (() => { try { return JSON.parse(process.env.AVAILABLE_TAGS) } catch(err) { return []} }) (),
                 simulateTags: !! (() => { try { return JSON.parse(process.env.SIMULATE_TAGS) } catch(err) { return []} }) () 
-            })
+            }, true)
     }
 
     getDeviceConfig() { return this.deviceConfig }
 
-    public  reinit(deviceConfig: DeviceConfig) : DeviceConfig {
+    public  reinit(deviceConfig: DeviceConfig, doInit = false) : DeviceConfig {
         this.inited = false;
-        try { this.mqttClient.end(); this.mqttClient = null } catch(err) {}
+        this.readyToTransmit = false;
+        this.tagToTopicMap = null;
+        if (this.mqttClient) {
+            this.mqttClient.end(); 
+            this.mqttClient = null
+        }
         DataSimulator.clear();
         this.initPending = null;
         this.licenseData = {} as LicenseData;
@@ -205,11 +211,13 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
     }
 
     private applyConfig(config: any) {
-        console.log(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         if (JSON.stringify(config) == JSON.stringify(this.lastConfig)) {
             console.log("Found same config => return");
             return;
         }
+        // disable message send till introspection is not properly installed
+        this.readyToTransmit = false;
+
         this.tagToTopicMap = new Map<string, string>();
         this.customIntrospections = ""
         console.log("APPLY CONFIG: ", JSON.stringify(config))
@@ -238,11 +246,13 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
         console.log("done !")
 
         this.lastConfig = config;
-        setTimeout(() => {
-            this.inited = false;
-            this.mqttClient.end();
-            this.init();
-        }, 1000);
+        setTimeout( async () => {
+            // wait if an init process is ongoing
+            if (this.initPending) {
+                await this.initPending
+            }
+            await this.mqttClient.reconnect();
+        }, 0);
     }
 
     private connectClient(broker_url: string, key: string, crt: string): Promise<any> {
@@ -255,21 +265,20 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
 
             this.subscribeChannel(this.applyConfigTopic);
 
-            this.mqttClient.on('connect', (v) => {
+            this.mqttClient.on('connect', async (v) => {
                 console.log("Successfully connected to mqtt brokern!", v)
 
                 console.log("published introspection " + DeviceService.baseIntrospection + this.customIntrospections)
-                this.publish(this.introspectionTopic, DeviceService.baseIntrospection + this.customIntrospections);
+                await this.publish(this.introspectionTopic, DeviceService.baseIntrospection + this.customIntrospections);
                 // Empty properties cache
                 console.log("published empty cache")
-                this.publish(this.empyCacheTopic, '1');
-
+                await this.publish(this.empyCacheTopic, '1');
 
                 console.log(JSON.stringify({ v: process.env.AVAILABLE_TAGS, t: Date.now() }))
-                this.publish(this.availableTagsTopic, JSON.stringify({ v: process.env.AVAILABLE_TAGS, t: Date.now() }))
+                await this.publish(this.availableTagsTopic, JSON.stringify({ v: process.env.AVAILABLE_TAGS, t: Date.now() }))
 
-
-
+                this.readyToTransmit = true;
+                console.log("Ready to transmit!")
                 resolve(true);
             })
 
@@ -284,8 +293,7 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
             this.mqttClient.on('error', (error) => {
                 console.warn("STREAM ERROR!", error)
                 reject(error);
-            }
-            )
+            })
 
 
             this.mqttClient.on('message', (topic, message) => {
@@ -296,6 +304,7 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
                         break;
                 }
             })
+
         })
     }
 
@@ -398,7 +407,10 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
     }
 
     async post(dataPoints: Array<DataPoint>): Promise<void> {
-        await this.init();
+        if (!this.readyToTransmit) {
+            console.error(`Cannot process ${JSON.stringify(dataPoints) }. Device not ready to transmit!`)
+            return;
+        }
         if (!this.tagToTopicMap) {
             console.error(`Cannot process ${JSON.stringify(dataPoints) }. Device is not configured yet!`)
             return;
@@ -409,7 +421,7 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
                 console.error(`Unknown topic for tag ${dp.tagName}`);
             } else {
                 const payload = JSON.stringify({ v: dp.value, t: Date.now() })
-                console.log("GOING TO SEND TO TOPIC", topic, payload)
+                console.log("GOING TO SEND TO TOPIC", this.tagToTopicMap, topic, payload)
                 await this.mqttClient.publish(topic, payload)
             }
         }
