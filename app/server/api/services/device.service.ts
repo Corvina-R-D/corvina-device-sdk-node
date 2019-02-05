@@ -23,11 +23,17 @@ export interface TagDesc {
     type: string
 }
 
+enum PacketFormatEnum {
+    JSON = "json",
+    BSON = "bson"
+}
+
 export interface DeviceConfig {
     activationKey ?: string;
     pairingEndpoint ?: string;
     availableTags ?: Array<TagDesc>; // json array string 
     simulateTags ?: boolean;
+    packetFormat ?: PacketFormatEnum;
 }
 
 export interface DataPoint {
@@ -124,7 +130,8 @@ export class DeviceService {
                 activationKey: process.env.ACTIVATION_KEY,
                 pairingEndpoint: process.env.PAIRING_ENDPOINT,
                 availableTags: (() => { try { return JSON.parse(process.env.AVAILABLE_TAGS) } catch(err) { return []} }) (),
-                simulateTags: !! (() => { try { return JSON.parse(process.env.SIMULATE_TAGS) } catch(err) { return []} }) () 
+                simulateTags: !! (() => { try { return JSON.parse(process.env.SIMULATE_TAGS) } catch(err) { return []} }) (),
+                packetFormat: process.env.PACKET_FORMAT as PacketFormatEnum
             }, true)
     }
 
@@ -162,7 +169,8 @@ export class DeviceService {
 ACTIVATION_KEY=${this.deviceConfig.activationKey}
 PAIRING_ENDPOINT=${this.deviceConfig.pairingEndpoint}
 AVAILABLE_TAGS=${JSON.stringify(this.deviceConfig.availableTags)}
-SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
+SIMULATE_TAGS=${this.deviceConfig.simulateTags}
+PACKET_FORMAT=${this.deviceConfig.packetFormat}`
         }
         fs.writeFileSync(envFile, currentContent)
         return this.deviceConfig
@@ -215,7 +223,6 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
             console.log("Found same config => return");
             return;
         }
-        // disable message send till introspection is not properly installed
         this.readyToTransmit = false;
 
         this.tagToTopicMap = new Map<string, string>();
@@ -237,11 +244,11 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
                 const prop = nodeProperties[p]
                 const dl = prop.datalink;
                 const map = prop.mapping;
-                this.tagToTopicMap.set(dl.source, `${this.licenseData.realm}/${this.licenseData.logicalId}${map.device_endpoint}`);
+                if (map) {
+                    this.tagToTopicMap.set(dl.source, `${this.licenseData.realm}/${this.licenseData.logicalId}${map.device_endpoint}`);
+                }
             }
         }
-
-        this.publish(this.configTopic, JSON.stringify({ v: JSON.stringify(config), t: Date.now() }));
 
         console.log("done !")
 
@@ -254,6 +261,15 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
             await this.mqttClient.reconnect();
         }, 0);
     }
+
+    private serializeMessage( msg: any ) : any {
+        if (this.deviceConfig.packetFormat == PacketFormatEnum.BSON) {
+            return BSON.serialize(msg)
+        } else {
+            return JSON.stringify(msg)
+        }
+    }
+
 
     private connectClient(broker_url: string, key: string, crt: string): Promise<any> {
         return new Promise((resolve, reject) => {
@@ -269,13 +285,17 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
                 console.log("Successfully connected to mqtt brokern!", v)
 
                 console.log("published introspection " + DeviceService.baseIntrospection + this.customIntrospections)
-                await this.publish(this.introspectionTopic, DeviceService.baseIntrospection + this.customIntrospections);
+                await this.publish(this.introspectionTopic, DeviceService.baseIntrospection + this.customIntrospections, { qos: 2});
                 // Empty properties cache
                 console.log("published empty cache")
-                await this.publish(this.empyCacheTopic, '1');
+                await this.publish(this.empyCacheTopic, '1', { qos: 2 });
 
                 console.log(JSON.stringify({ v: process.env.AVAILABLE_TAGS, t: Date.now() }))
-                await this.publish(this.availableTagsTopic, JSON.stringify({ v: process.env.AVAILABLE_TAGS, t: Date.now() }))
+                await this.publish(this.availableTagsTopic, this.serializeMessage({ v: process.env.AVAILABLE_TAGS, t: Date.now() }), { qos: 2})
+
+                console.log("published configuration")
+                await this.publish(this.configTopic, this.serializeMessage({ v: JSON.stringify(this.lastConfig), t: Date.now() }), { qos: 2});
+
 
                 this.readyToTransmit = true;
                 console.log("Ready to transmit!")
@@ -321,10 +341,10 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
         })
     }
 
-    private publish(channel: string, message: string): Promise<any> {
+    private publish(channel: string, message: string, options: any = {}): Promise<any> {
         console.log("GOING TO PUBLISH ", channel, message)
         return new Promise((resolve, reject) => {
-            this.mqttClient.publish(channel, message, (err) => {
+            this.mqttClient.publish(channel, message, options, (err) => {
                 if (!err) {
                     resolve(true);
                 } else {
@@ -420,7 +440,7 @@ SIMULATE_TAGS=${this.deviceConfig.simulateTags}`
             if (!topic) {
                 console.error(`Unknown topic for tag ${dp.tagName}`);
             } else {
-                const payload = JSON.stringify({ v: dp.value, t: Date.now() })
+                const payload = this.serializeMessage({ v: dp.value, t: Date.now() })
                 console.log("GOING TO SEND TO TOPIC", this.tagToTopicMap, topic, payload)
                 await this.mqttClient.publish(topic, payload)
             }
