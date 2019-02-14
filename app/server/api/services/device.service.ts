@@ -229,7 +229,6 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
         this.customIntrospections = ""
         console.log("APPLY CONFIG: ", JSON.stringify(config))
 
-        // FIXME: support hierarchical models!!
         assert(config.type == "datamodel")
         for (let n in config.properties) {
             const nodeInterfaces = config.properties[n].interfaces
@@ -239,14 +238,20 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 this.customIntrospections += `;${i.interface_name}:${i.version_major}:${i.version_minor}`
 
             }
-            const nodeProperties = config.properties[n].properties
-            for (let p in nodeProperties) {
-                const prop = nodeProperties[p]
+            let nodeProperties : Array<any> = []
+            Object.keys(config.properties[n].properties).forEach( (k) => { nodeProperties.push( config.properties[n].properties[k] ); } )
+            for (let prop of nodeProperties) {
                 const dl = prop.datalink;
                 const map = prop.mapping;
-                if (map) {
+                if (dl && map) {
                     this.tagToTopicMap.set(dl.source, `${this.licenseData.realm}/${this.licenseData.logicalId}${map.device_endpoint}`);
                 }
+                if (prop.type == "object") {
+                    nodeProperties = nodeProperties.concat( Object.keys(prop.properties).forEach( (k) => { nodeProperties.push( prop.properties[k] ); } ) )
+                } else if (prop.type == 'array') {
+                    nodeProperties = nodeProperties.concat( prop.item )
+                }
+                // FIXME: support struct and array models!!
             }
         }
 
