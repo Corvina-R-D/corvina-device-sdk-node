@@ -135,7 +135,15 @@ export class DeviceService {
             }, true)
     }
 
+    getAppliedConfig() {
+        return this.lastConfig
+    }
+
     getDeviceConfig() { return this.deviceConfig }
+
+    getLicenseData() { 
+        return this.licenseData 
+    }
 
     public  reinit(deviceConfig: DeviceConfig, doInit = false) : DeviceConfig {
         this.inited = false;
@@ -295,8 +303,8 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 console.log("published empty cache")
                 await this.publish(this.empyCacheTopic, '1', { qos: 2 });
 
-                console.log(JSON.stringify({ v: process.env.AVAILABLE_TAGS, t: Date.now() }))
-                await this.publish(this.availableTagsTopic, this.serializeMessage({ v: process.env.AVAILABLE_TAGS, t: Date.now() }), { qos: 2})
+                console.log(JSON.stringify({ v: JSON.stringify(this.deviceConfig.availableTags), t: Date.now() }))
+                await this.publish(this.availableTagsTopic, this.serializeMessage({ v: JSON.stringify(this.deviceConfig.availableTags), t: Date.now() }), { qos: 2})
 
                 console.log("published configuration")
                 await this.publish(this.configTopic, this.serializeMessage({ v: JSON.stringify(this.lastConfig), t: Date.now() }), { qos: 2});

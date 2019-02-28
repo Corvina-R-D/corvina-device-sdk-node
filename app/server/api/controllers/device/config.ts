@@ -22,5 +22,24 @@ export class Controller {
             next(err)
         }
     }
+
+    get(req: Request, res: Response, next): void {
+        try {
+        res.status(200)
+                .json(DeviceService.getAppliedConfig())
+        } catch (err) {
+            next(err)
+        }
+    }
+
+    getLicenseData(req: Request, res: Response, next): void {
+        try {
+        res.status(200)
+                .json(DeviceService.getLicenseData())
+        } catch (err) {
+            next(err)
+        }
+    }
 }
+
 export default new Controller();

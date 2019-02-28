@@ -28,14 +28,27 @@ export class Controller {
          }
       ]
    }
+
+   [{ 'n': 'Tag1', t': "2018-11-21T20:54:50.812Z", 'v' : 1 }]
    */
     let dataPoints = new Array<DataPoint>();
-    for (let s of req.body.series) {
-      for (let v of s.values) {
+    if (req.body.series) {
+      for (let s of req.body.series) {
+        for (let v of s.values) {
+          const dp: DataPoint = {
+            tagName: s.columns[1],
+            value: v[1],
+            timestamp: v[0]
+          };
+          dataPoints.push(dp)
+        }
+      }
+    } else {
+      for(let x of req.body.data) {
         const dp: DataPoint = {
-          tagName: s.columns[1],
-          value: v[1],
-          timestamp: v[0]
+          tagName: x.n,
+          value: x.v,
+          timestamp: x.t
         };
         dataPoints.push(dp)
       }
