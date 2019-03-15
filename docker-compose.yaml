@@ -7,13 +7,15 @@ services:
     ports:
       - "18080:3000"
     network_mode: "host"
-#    extra_hosts:
-#      - "corvina.fog:${HOST_IP:-127.0.0.1}"
-#      - "app.corvina.fog:${HOST_IP:-127.0.0.1}"
-#      - "auth.corvina.fog:${HOST_IP:-127.0.0.1}"
-#      - "licenses.corvina.fog:${HOST_IP:-127.0.0.1}"
-#      - "pairing.corvina.fog:${HOST_IP:-127.0.0.1}"
-#      - "broker.corvina.fog:${HOST_IP:-127.0.0.1}"
-#      - "appengine.api.platform.corvina.fog:${HOST_IP:-127.0.0.1}"
-#      - "api.platform.corvina.fog:${HOST_IP:-127.0.0.1}"
+    extra_hosts:
+      - "corvina.fog:${HOST_IP:-127.0.0.1}"
+      - "app.corvina.fog:${HOST_IP:-127.0.0.1}"
+      - "auth.corvina.fog:${HOST_IP:-127.0.0.1}"
+      - "licenses.corvina.fog:${HOST_IP:-127.0.0.1}"
+      - "pairing.corvina.fog:${HOST_IP:-127.0.0.1}"
+      - "broker.corvina.fog:${HOST_IP:-127.0.0.1}"
+      - "appengine.api.platform.corvina.fog:${HOST_IP:-127.0.0.1}"
+      - "api.platform.corvina.fog:${HOST_IP:-127.0.0.1}"
     restart: always
+#    volumes:
+#      - ./app/server:/app/server
