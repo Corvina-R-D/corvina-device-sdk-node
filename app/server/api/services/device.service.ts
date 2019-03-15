@@ -271,6 +271,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             if (this.initPending) {
                 await this.initPending
             }
+            await this.mqttClient.end();
             await this.mqttClient.reconnect();
         }, 0);
     }
