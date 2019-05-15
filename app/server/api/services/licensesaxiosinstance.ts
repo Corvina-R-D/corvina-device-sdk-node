@@ -28,6 +28,9 @@ export class PairingAxiosInstance
 
     constructor(licenseData : LicenseData) {
         this.licenseData = licenseData;
+        if (!this.licenseData.platformPairingApiUrl.startsWith("http")) {
+            this.licenseData.platformPairingApiUrl = "https://api.platform.corvina.cloud/pairing/v1/" + this.licenseData.platformPairingApiUrl;
+        }
         this.axiosInstance.defaults.baseURL = `${this.licenseData.platformPairingApiUrl}/devices/${this.licenseData.logicalId}`;
         this.axiosInstance.defaults.headers = { Authorization : `Bearer ${this.licenseData.apiKey}`};
     }
