@@ -3,14 +3,11 @@ import pem from 'pem'
 import LicensesAxiosInstance, { LicenseData, ProtocolData, CrtData } from './licensesaxiosinstance'
 import mqtt, { IClientOptions, ISecureClientOptions, MqttClient } from 'mqtt';
 import BSON from 'bson'
-import { timingSafeEqual } from 'crypto';
 var assert = require('assert');
-import tls, { ConnectionOptions, connect } from 'tls';
 import { exec } from 'child_process'
 import URL from 'url';
-import { hostname } from 'os';
 
-import fs from 'fs'
+import fs, { readSync } from 'fs'
 import path from 'path'
 
 interface CSRData {
@@ -18,9 +15,12 @@ interface CSRData {
     clientKey: string;
 }
 
+import { DataSimulator, SimulationDesc } from './simulation'
+
 export interface TagDesc {
     name: string,
-    type: string
+    type: string,
+    simulation: SimulationDesc
 }
 
 enum PacketFormatEnum {
@@ -29,73 +29,17 @@ enum PacketFormatEnum {
 }
 
 export interface DeviceConfig {
-    activationKey ?: string;
-    pairingEndpoint ?: string;
-    availableTags ?: Array<TagDesc>; // json array string 
-    simulateTags ?: boolean;
-    packetFormat ?: PacketFormatEnum;
+    activationKey?: string;
+    pairingEndpoint?: string;
+    availableTags?: Array<TagDesc>; // json array string 
+    simulateTags?: boolean;
+    packetFormat?: PacketFormatEnum;
 }
 
 export interface DataPoint {
     tagName: string; // tag name
     value: any;
     timestamp: number; // posix time
-}
-
-class DataSimulator {
-    private service: DeviceService;
-    private type;
-    private tag;
-    private amplitude;
-    private phase;
-    private period;
-
-    static simulators = new Array<DataSimulator>();
-    static inited = false;
-
-    constructor(tag: string, type : string, service: DeviceService) {
-        this.tag = tag;
-        this.type = type;
-        this.service = service;
-        DataSimulator.simulators.push(this)
-
-        this.amplitude = 500 * Math.random();
-        this.phase = Math.random() * 4 * Math.PI
-        this.period = Math.random() * 30000;
-
-        if (!DataSimulator.inited) {
-            setInterval(() => {
-                DataSimulator.simulators.forEach((value) => { value.loop() })
-            }, 1000);
-            DataSimulator.inited = true;
-        }
-        
-    }
-
-    loop() {
-        //console.log("loop!!!")
-        if (this.service.ready()) {
-            const ts = Date.now()
-            let value = null;
-            switch (this.type) {
-                case 'integer':
-                    value = ( Math.random() * this.amplitude ) | 0;
-                    break;
-                case 'double':
-                    value = this.amplitude * Math.sin( this.phase +  ts *  2 * Math.PI / this.period ) 
-                    break;
-                case 'string':
-                    value = Math.random().toString();
-                    break;
-            }
-            this.service.post( [{ tagName: this.tag, value: value, timestamp: ts }] )
-        }
-    }
-
-
-    static clear() {
-        DataSimulator.simulators = new Array<DataSimulator>();
-    }
 }
 
 export class DeviceService {
@@ -129,8 +73,8 @@ export class DeviceService {
             {
                 activationKey: process.env.ACTIVATION_KEY,
                 pairingEndpoint: process.env.PAIRING_ENDPOINT,
-                availableTags: (() => { try { return JSON.parse(process.env.AVAILABLE_TAGS) } catch(err) { return []} }) (),
-                simulateTags: !! (() => { try { return JSON.parse(process.env.SIMULATE_TAGS) } catch(err) { return []} }) (),
+                availableTags: (() => { try { return JSON.parse(process.env.AVAILABLE_TAGS) } catch (err) { return [] } })(),
+                simulateTags: !!(() => { try { return JSON.parse(process.env.SIMULATE_TAGS) } catch (err) { return [] } })(),
                 packetFormat: process.env.PACKET_FORMAT as PacketFormatEnum
             }, true)
     }
@@ -141,16 +85,16 @@ export class DeviceService {
 
     getDeviceConfig() { return this.deviceConfig }
 
-    getLicenseData() { 
-        return this.licenseData 
+    getLicenseData() {
+        return this.licenseData
     }
 
-    public  reinit(deviceConfig: DeviceConfig, doInit = false) : DeviceConfig {
+    public reinit(deviceConfig: DeviceConfig, doInit = false): DeviceConfig {
         this.inited = false;
         this.readyToTransmit = false;
         this.tagToTopicMap = null;
         if (this.mqttClient) {
-            this.mqttClient.end(); 
+            this.mqttClient.end();
             this.mqttClient = null
         }
         DataSimulator.clear();
@@ -163,13 +107,13 @@ export class DeviceService {
         this.init();
         if (this.deviceConfig.simulateTags) {
             this.deviceConfig.availableTags.forEach(
-                (value) => { new DataSimulator(value.name, value.type, this) }
+                (value) => { new DataSimulator(value.name, value.type, (t, v, ts) => { if (this.ready()) { this.post([{ tagName: t, value: v, timestamp: ts }]) } } , value.simulation) }
             )
         }
-        let envFile = path.join( process.cwd(), '.env' ) 
+        let envFile = path.join(process.cwd(), '.env')
         let currentContent = fs.readFileSync(envFile).toString()
         let appendedValuesPos = currentContent.indexOf("### LAST-ENV ###")
-        if ( appendedValuesPos > 0) {
+        if (appendedValuesPos > 0) {
             currentContent = currentContent.slice(0, appendedValuesPos)
             currentContent += `
 ### LAST-ENV ###
@@ -246,18 +190,23 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 this.customIntrospections += `;${i.interface_name}:${i.version_major}:${i.version_minor}`
 
             }
-            let nodeProperties : Array<any> = []
-            Object.keys(config.properties[n].properties).forEach( (k) => { nodeProperties.push( config.properties[n].properties[k] ); } )
+            let nodeProperties: Array<any> = []
+            Object.keys(config.properties[n].properties).forEach((k) => { nodeProperties.push(config.properties[n].properties[k]); })
             for (let prop of nodeProperties) {
                 const dl = prop.datalink;
                 const map = prop.mapping;
                 if (dl && map) {
                     this.tagToTopicMap.set(dl.source, `${this.licenseData.realm}/${this.licenseData.logicalId}${map.device_endpoint}`);
                 }
+                // if (prop.type == "object") {
+                //     nodeProperties = nodeProperties.concat( Object.keys(prop.properties).forEach( (k) => { nodeProperties.push( prop.properties[k] ); } ) )
+                // } else if (prop.type == 'array') {
+                //     nodeProperties = nodeProperties.concat( prop.item )
+                // }
                 if (prop.type == "object") {
-                    nodeProperties = nodeProperties.concat( Object.keys(prop.properties).forEach( (k) => { nodeProperties.push( prop.properties[k] ); } ) )
+                    Object.keys(prop.properties).forEach((k) => { nodeProperties.push(prop.properties[k]); })
                 } else if (prop.type == 'array') {
-                    nodeProperties = nodeProperties.concat( prop.item )
+                    nodeProperties.push(prop.item)
                 }
                 // FIXME: support struct and array models!!
             }
@@ -266,7 +215,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
         console.log("done !")
 
         this.lastConfig = config;
-        setTimeout( async () => {
+        setTimeout(async () => {
             // wait if an init process is ongoing
             if (this.initPending) {
                 await this.initPending
@@ -276,7 +225,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
         }, 0);
     }
 
-    private serializeMessage( msg: any ) : any {
+    private serializeMessage(msg: any): any {
         if (this.deviceConfig.packetFormat == PacketFormatEnum.BSON) {
             return BSON.serialize(msg)
         } else {
@@ -299,16 +248,16 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 console.log("Successfully connected to mqtt brokern!", v)
 
                 console.log("published introspection " + DeviceService.baseIntrospection + this.customIntrospections)
-                await this.publish(this.introspectionTopic, DeviceService.baseIntrospection + this.customIntrospections, { qos: 2});
+                await this.publish(this.introspectionTopic, DeviceService.baseIntrospection + this.customIntrospections, { qos: 2 });
                 // Empty properties cache
                 console.log("published empty cache")
                 await this.publish(this.empyCacheTopic, '1', { qos: 2 });
 
                 console.log(JSON.stringify({ v: JSON.stringify(this.deviceConfig.availableTags), t: Date.now() }))
-                await this.publish(this.availableTagsTopic, this.serializeMessage({ v: JSON.stringify(this.deviceConfig.availableTags), t: Date.now() }), { qos: 2})
+                await this.publish(this.availableTagsTopic, this.serializeMessage({ v: JSON.stringify(this.deviceConfig.availableTags), t: Date.now() }), { qos: 2 })
 
                 console.log("published configuration")
-                await this.publish(this.configTopic, this.serializeMessage({ v: JSON.stringify(this.lastConfig), t: Date.now() }), { qos: 2});
+                await this.publish(this.configTopic, this.serializeMessage({ v: JSON.stringify(this.lastConfig), t: Date.now() }), { qos: 2 });
 
 
                 this.readyToTransmit = true;
@@ -386,7 +335,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             const info: ProtocolData = await this.axios.getInfo(this.licenseData.platformPairingApiUrl, this.licenseData.apiKey, this.licenseData.logicalId)
 
             // take first protocol available. Todo: ensures is valid
-            const mqtt_protocol = info.protocols[  Object.keys(info.protocols)[0] ]
+            const mqtt_protocol = info.protocols[Object.keys(info.protocols)[0]]
             assert(mqtt_protocol)
 
             // sign the certificate
@@ -431,9 +380,9 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             } catch (err) {
                 console.error("Error initing: ", err);
                 this.initPending = null;
-                let randomRetry = 5 + 10*Math.random()
+                let randomRetry = 5 + 10 * Math.random()
                 console.error(`Retry init in  ${randomRetry} secs`);
-                setTimeout(() => {this.init()}, randomRetry*1000)
+                setTimeout(() => { this.init() }, randomRetry * 1000)
             }
             this.initPending = null;
         }
@@ -442,11 +391,11 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
 
     async post(dataPoints: Array<DataPoint>): Promise<void> {
         if (!this.readyToTransmit) {
-            console.error(`Cannot process ${JSON.stringify(dataPoints) }. Device not ready to transmit!`)
+            console.error(`Cannot process ${JSON.stringify(dataPoints)}. Device not ready to transmit!`)
             return;
         }
         if (!this.tagToTopicMap) {
-            console.error(`Cannot process ${JSON.stringify(dataPoints) }. Device is not configured yet!`)
+            console.error(`Cannot process ${JSON.stringify(dataPoints)}. Device is not configured yet!`)
             return;
         }
         for (let dp of dataPoints) {
