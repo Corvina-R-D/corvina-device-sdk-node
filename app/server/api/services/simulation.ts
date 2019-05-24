@@ -79,6 +79,7 @@ export class DataSimulator {
     private defPeriod;
     private desc : SimulationDesc;
     private lastSentValue : any;
+    private filterDuplications : boolean;
 
     static simulators = new Array<DataSimulator>();
     static inited = false;
@@ -88,6 +89,9 @@ export class DataSimulator {
         this.type = type;
         this.callback = callback;
         this.desc = desc
+
+        this.filterDuplications = !!(() => { try { return JSON.parse(process.env.FILTER_DUPS) } catch (err) { return true } })()
+
         DataSimulator.simulators.push(this)
 
         this.defAmplitude = 500 * Math.random();
@@ -235,7 +239,7 @@ export class DataSimulator {
                     break;
             }
         }
-        if (JSON.stringify(value) != JSON.stringify(this.lastSentValue)) {
+        if ( !this.filterDuplications || JSON.stringify(value) != JSON.stringify(this.lastSentValue)) {
             try {
                 if ( await this.callback(this.tag, value, ts) )
                     this.lastSentValue = value;
