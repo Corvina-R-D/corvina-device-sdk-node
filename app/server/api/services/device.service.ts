@@ -405,7 +405,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 return false;
             } else {
                 const payload = this.serializeMessage({ v: dp.value, t: Date.now() })
-                console.log("GOING TO SEND TO TOPIC", this.tagToTopicMap, topic, payload)
+                console.log("GOING TO SEND TO TOPIC", /* this.tagToTopicMap, */ topic, payload)
                 try { 
                     await this.mqttClient.publish(topic, payload)
                 } catch(e) {
