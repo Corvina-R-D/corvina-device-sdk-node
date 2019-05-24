@@ -71,18 +71,19 @@ export interface ConstSimulationProperties extends SimulationDesc
 
 
 export class DataSimulator {
-    private callback: (tagName: string, value: number, ts: number) => void;
+    private callback: (tagName: string, value: number, ts: number) => Promise<boolean>;
     private type;
     private tag;
     private defAmplitude;
     private defPhase;
     private defPeriod;
     private desc : SimulationDesc;
+    private lastSentValue : any;
 
     static simulators = new Array<DataSimulator>();
     static inited = false;
 
-    constructor(tag: string, type: string, callback: (tagName: string, value: number, ts: number) => void, desc: SimulationDesc) {
+    constructor(tag: string, type: string, callback: (tagName: string, value: number, ts: number) => Promise<boolean>, desc: SimulationDesc) {
         this.tag = tag;
         this.type = type;
         this.callback = callback;
@@ -114,7 +115,7 @@ export class DataSimulator {
         return v
     }
 
-    loop() {
+    async loop() {
         //console.log("loop!!!")
         const ts = Date.now()
         let value = null;
@@ -143,11 +144,10 @@ export class DataSimulator {
                             case 'double':
                                 value = noised;
                                 break;
-                            case 'double':
+                            case 'string':
                                 value = JSON.stringify(noised);
                                 break;
                         }
-                        break;
                     }
                     break;
                 case SimulationType.SINE:
@@ -161,11 +161,10 @@ export class DataSimulator {
                             case 'double':
                                 value = v;
                                 break;
-                            case 'double':
+                            case 'string':
                                 value = JSON.stringify(v.toString());
                                 break;
                         }
-                        break;
                     }
                     break;
                 case SimulationType.STEP:
@@ -228,17 +227,21 @@ export class DataSimulator {
                             case 'double':
                                 value = noised;
                                 break;
-                            case 'double':
+                            case 'string':
                                 value = JSON.stringify(noised.toString());
                                 break;
                         }
-                        break;
                     }
                     break;
             }
-            this.callback(this.tag, value, ts)
         }
-    }
+        if (JSON.stringify(value) != JSON.stringify(this.lastSentValue)) {
+            try {
+                if ( await this.callback(this.tag, value, ts) )
+                    this.lastSentValue = value;
+            } catch(e) {}
+        }
+}
 
 
     static clear() {

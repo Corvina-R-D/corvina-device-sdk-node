@@ -107,7 +107,7 @@ export class DeviceService {
         this.init();
         if (this.deviceConfig.simulateTags) {
             this.deviceConfig.availableTags.forEach(
-                (value) => { new DataSimulator(value.name, value.type, (t, v, ts) => { if (this.ready()) { this.post([{ tagName: t, value: v, timestamp: ts }]) } } , value.simulation) }
+                (value) => { new DataSimulator(value.name, value.type, async (t, v, ts) => { if (this.ready()) { return this.post([{ tagName: t, value: v, timestamp: ts }]);  } return false;  } , value.simulation) }
             )
         }
         let envFile = path.join(process.cwd(), '.env')
@@ -389,26 +389,31 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
         return this.inited;
     }
 
-    async post(dataPoints: Array<DataPoint>): Promise<void> {
+    async post(dataPoints: Array<DataPoint>): Promise<boolean> {
         if (!this.readyToTransmit) {
             console.error(`Cannot process ${JSON.stringify(dataPoints)}. Device not ready to transmit!`)
-            return;
+            return false;
         }
         if (!this.tagToTopicMap) {
             console.error(`Cannot process ${JSON.stringify(dataPoints)}. Device is not configured yet!`)
-            return;
+            return false;
         }
         for (let dp of dataPoints) {
             const topic = this.tagToTopicMap.get(dp.tagName)
             if (!topic) {
                 console.error(`Unknown topic for tag ${dp.tagName}`);
+                return false;
             } else {
                 const payload = this.serializeMessage({ v: dp.value, t: Date.now() })
                 console.log("GOING TO SEND TO TOPIC", this.tagToTopicMap, topic, payload)
-                await this.mqttClient.publish(topic, payload)
+                try { 
+                    await this.mqttClient.publish(topic, payload)
+                } catch(e) {
+                    return false;
+                }
             }
         }
-        return Promise.resolve();
+        return true;
     }
 }
 
