@@ -105,11 +105,6 @@ export class DeviceService {
         Object.assign(this.deviceConfig, deviceConfig)
         this.axios = new LicensesAxiosInstance(this.deviceConfig.pairingEndpoint, this.deviceConfig.activationKey)
         this.init();
-        if (this.deviceConfig.simulateTags) {
-            this.deviceConfig.availableTags.forEach(
-                (value) => { new DataSimulator(value.name, value.type, async (t, v, ts) => { if (this.ready()) { return this.post([{ tagName: t, value: v, timestamp: ts }]);  } return false;  } , value.simulation) }
-            )
-        }
         let envFile = path.join(process.cwd(), '.env')
         let currentContent = fs.readFileSync(envFile).toString()
         let appendedValuesPos = currentContent.indexOf("### LAST-ENV ###")
@@ -262,14 +257,24 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
 
                 this.readyToTransmit = true;
                 console.log("Ready to transmit!")
+
+                DataSimulator.clear();
+                if (this.deviceConfig.simulateTags) {
+                    this.deviceConfig.availableTags.forEach(
+                        (value) => { new DataSimulator(value.name, value.type, async (t, v, ts) => { if (this.ready()) { return this.post([{ tagName: t, value: v, timestamp: ts }]);  } return false;  } , value.simulation) }
+                    )
+                }
+        
                 resolve(true);
             })
 
             this.mqttClient.on('close', (v) => {
+                DataSimulator.clear();
                 console.log("STREAM CLOSED!", v)
             })
 
             this.mqttClient.on('reconnect', (v) => {
+                DataSimulator.clear();
                 console.log("STREAM RECONNECTED!", v)
             })
 
