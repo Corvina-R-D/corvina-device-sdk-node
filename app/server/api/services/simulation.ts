@@ -166,7 +166,7 @@ export class DataSimulator {
                                 value = v;
                                 break;
                             case 'string':
-                                value = (v as any) instanceof String ? v : JSON.stringify(v.toString());
+                                value = (v as any) instanceof String ? v : JSON.stringify(v);
                                 break;
                         }
                     }
@@ -232,7 +232,7 @@ export class DataSimulator {
                                 value = noised;
                                 break;
                             case 'string':
-                                value = (noised as any) instanceof String ? noised : JSON.stringify(noised.toString());
+                                value = (noised as any) instanceof String ? noised : JSON.stringify(noised);
                                 break;
                         }
                     }
