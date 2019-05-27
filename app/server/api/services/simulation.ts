@@ -149,6 +149,7 @@ export class DataSimulator {
                                 value = noised;
                                 break;
                             case 'string':
+                                console.log(">>>>>>>> check string behavior ", value, (value as any ) instanceof String)
                                 value = (value as any ) instanceof String ? value : JSON.stringify(noised);
                                 break;
                         }
