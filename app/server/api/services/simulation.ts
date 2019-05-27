@@ -1,4 +1,5 @@
 import { version } from "bluebird";
+import { stringify } from "querystring";
 
 //import ease from 'd3-ease'
 const ease  = require('d3-ease')
@@ -50,7 +51,8 @@ export interface NullableSimulationProperties
 enum SimulationType {
     SINE = "sine",
     STEP = "step",
-    CONST = "const"
+    CONST = "const",
+    FUNCTION = "function"
 }
 
 
@@ -80,6 +82,12 @@ export interface SineSimulationProperties extends SimulationDesc
     phase: number
 }
 
+export interface FunctionSimulationProperties extends SimulationDesc
+{
+    f: string,
+    _f ?: ( $: any) => any,
+}
+
 export interface ConstSimulationProperties extends SimulationDesc
 {
     value: number
@@ -101,11 +109,18 @@ export class DataSimulator {
     static simulators = new Array<DataSimulator>();
     static inited = false;
 
+    // global vars
+    static vars: Map<string, any>;
+
     constructor(tag: string, type: string, callback: (tagName: string, value: number, ts: number) => Promise<boolean>, desc: SimulationDesc) {
         this.tag = tag;
         this.type = type;
         this.callback = callback;
         this.desc = desc
+
+        if (!DataSimulator.vars) {
+            DataSimulator.vars = new Map<string, any>()
+        }
 
         this.filterDuplications = !!(() => { try { return JSON.parse(process.env.FILTER_DUPS) } catch (err) { return true } })()
 
@@ -188,6 +203,37 @@ export class DataSimulator {
             }
         } else {
             switch (this.desc.type) {
+                case SimulationType.FUNCTION:
+                    {
+                        let props = this.desc as FunctionSimulationProperties
+                        try {
+                            if (!props._f) {
+                                props._f = ( new Function("$", props.f) as () => any )
+                            }
+                            value = props._f.call(this, (t) => { return DataSimulator.vars.get(t) })
+                        } catch(e) {
+                            console.log()
+                            console.log("Error evaluating", e)
+                        }
+                        if (value == null || value == undefined) {
+                            return
+                        }
+
+                        let noised = this.applyNoise(value)
+                        switch (this.type) {
+                            case 'integer':
+                                value = ~~noised;
+                                break;
+                            case 'double':
+                                value = noised;
+                                break;
+                            case 'string':
+                                value = (typeof noised == 'string' || ((noised as any) instanceof String )) ? noised : JSON.stringify(noised);
+                                break;
+                        }
+                        value = this.nullify(value)
+                    }
+                    break;
                 case SimulationType.CONST:
                     {
                         let props = this.desc as ConstSimulationProperties
@@ -302,8 +348,10 @@ export class DataSimulator {
         }
         if ( !this.filterDuplications || JSON.stringify(value) != JSON.stringify(this.lastSentValue)) {
             try {
-                if ( await this.callback(this.tag, value, ts) )
+                if ( await this.callback(this.tag, value, ts) ) {
+                    DataSimulator.vars.set(this.tag, value)
                     this.lastSentValue = value;
+                }
             } catch(e) {}
         }
     }
