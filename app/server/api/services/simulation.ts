@@ -322,7 +322,11 @@ export class DataSimulator {
                         } else {
                             v = props.state.current
                         }
+
                         let noised = this.applyNoise(v)
+                        if (noised < props.offset) {
+                            noised = props.offset;
+                        }
 
                         switch (this.type) {
                             case 'integer':
