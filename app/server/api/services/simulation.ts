@@ -1,3 +1,4 @@
+import { version } from "bluebird";
 
 //import ease from 'd3-ease'
 const ease  = require('d3-ease')
@@ -149,7 +150,7 @@ export class DataSimulator {
                                 value = noised;
                                 break;
                             case 'string':
-                                value = (noised as any ) instanceof String ? noised : JSON.stringify(noised);
+                                value = (typeof noised == 'string' || ((noised as any) instanceof String )) ? noised : JSON.stringify(noised);
                                 break;
                         }
                     }
@@ -166,7 +167,7 @@ export class DataSimulator {
                                 value = v;
                                 break;
                             case 'string':
-                                value = (v as any) instanceof String ? v : JSON.stringify(v);
+                                value = (typeof v == 'string' || ((v as any) instanceof String )) ? v : JSON.stringify(v);
                                 break;
                         }
                     }
@@ -232,7 +233,7 @@ export class DataSimulator {
                                 value = noised;
                                 break;
                             case 'string':
-                                value = (noised as any) instanceof String ? noised : JSON.stringify(noised);
+                                value = (typeof noised == 'string' || ((noised as any) instanceof String ))  ? noised : JSON.stringify(noised);
                                 break;
                         }
                     }
@@ -245,7 +246,7 @@ export class DataSimulator {
                     this.lastSentValue = value;
             } catch(e) {}
         }
-}
+    }
 
 
     static clear() {
