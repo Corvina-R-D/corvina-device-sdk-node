@@ -1,5 +1,6 @@
 import { version } from "bluebird";
 import { stringify } from "querystring";
+import { promises } from "fs";
 
 //import ease from 'd3-ease'
 const ease  = require('d3-ease')
@@ -139,14 +140,22 @@ export class DataSimulator {
 
     }
 
-    applyNoise(v: number): number {
+    applyNoise(v: number, min: number = -Infinity, max: number = Infinity): number {
         const props = this.desc as SimulationDesc
         if (props.noise) {
+            let noised = v;
             if (props.noise.type == NoiseSimulationType.ABSOLUTE) {
-                return v + (Math.random() - 0.5) * props.noise.amplitude
+                noised =  v + (Math.random() - 0.5) * props.noise.amplitude
             } else {
-                return v + (Math.random() - 0.5) * (v * props.noise.amplitude / 100)
+                noised = v + (Math.random() - 0.5) * (v * props.noise.amplitude / 100)
             }
+            if (noised < min) {
+                return min
+            }
+            if (noised > max) {
+                return max
+            }
+            return noised
         }
         return v
     }
@@ -323,10 +332,7 @@ export class DataSimulator {
                             v = props.state.current
                         }
 
-                        let noised = this.applyNoise(v)
-                        if (noised < props.offset) {
-                            noised = props.offset;
-                        }
+                        let noised = this.applyNoise(v, props.offset, props.offset+props.amplitude)
 
                         switch (this.type) {
                             case 'integer':
@@ -350,6 +356,7 @@ export class DataSimulator {
                     break;
             }
         }
+
         if ( !this.filterDuplications || JSON.stringify(value) != JSON.stringify(this.lastSentValue)) {
             try {
                 if ( await this.callback(this.tag, value, ts) ) {
