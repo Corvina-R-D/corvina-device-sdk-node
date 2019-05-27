@@ -32,6 +32,21 @@ export interface NoiseSimulationProperties
 }
 
 
+interface NullableSimulationStateMachine {
+    nullifying: boolean
+    start: number
+    duration: number
+}
+
+export interface NullableSimulationProperties
+{
+    probability: number
+    dt_min: number
+    dt_max: number
+    state ?: NullableSimulationStateMachine
+}
+
+
 enum SimulationType {
     SINE = "sine",
     STEP = "step",
@@ -42,6 +57,7 @@ enum SimulationType {
 export interface SimulationDesc {
     type: SimulationType,
     noise: NoiseSimulationProperties
+    nullable: NullableSimulationProperties
 }
 
 export interface StepSimulationProperties extends SimulationDesc
@@ -120,6 +136,40 @@ export class DataSimulator {
         return v
     }
 
+    nullify(v: any, callback: (nullifyingPrev: boolean, nullifyingCurrent: boolean) => void = null): any {
+        const props = this.desc as SimulationDesc
+        if (props.nullable) {
+            if (!props.nullable.state) {
+                props.nullable.state =  { nullifying: false, duration: 0, start: 0}
+            }
+            const oldState = props.nullable.state.nullifying
+            const dice = Math.random()
+            const now = Date.now()
+            if (!props.nullable.state.nullifying) {
+                if (dice < props.nullable.probability) {
+                    props.nullable.state.nullifying = true
+                    props.nullable.state.start = now
+                    props.nullable.state.duration = 1000 * ( props.nullable.dt_min + Math.random() * ( props.nullable.dt_max - props.nullable.dt_min) )
+                }
+            } else {
+                if ( now > (props.nullable.state.start + props.nullable.state.duration)) {
+                    props.nullable.state.nullifying = false
+                }
+            }
+            if (callback) {
+                callback(oldState, props.nullable.state.nullifying)
+            }
+            if (props.nullable.state.nullifying == true) {
+                if (typeof v == 'number') {
+                    return  0
+                } else {
+                    return ""
+                }
+            }
+        }
+        return v;
+    }
+
     async loop() {
         //console.log("loop!!!")
         const ts = Date.now()
@@ -153,6 +203,7 @@ export class DataSimulator {
                                 value = (typeof noised == 'string' || ((noised as any) instanceof String )) ? noised : JSON.stringify(noised);
                                 break;
                         }
+                        value = this.nullify(value)
                     }
                     break;
                 case SimulationType.SINE:
@@ -162,6 +213,7 @@ export class DataSimulator {
                         switch (this.type) {
                             case 'integer':
                                 value = ~~v;
+                                value = this.nullify(value)
                                 break;
                             case 'double':
                                 value = v;
@@ -170,6 +222,7 @@ export class DataSimulator {
                                 value = (typeof v == 'string' || ((v as any) instanceof String )) ? v : JSON.stringify(v);
                                 break;
                         }
+                        value = this.nullify(value)
                     }
                     break;
                 case SimulationType.STEP:
@@ -236,6 +289,13 @@ export class DataSimulator {
                                 value = (typeof noised == 'string' || ((noised as any) instanceof String ))  ? noised : JSON.stringify(noised);
                                 break;
                         }
+
+                        value = this.nullify(value, (o: boolean, n: boolean) => {
+                            if (o == true && n == false) {
+                                props.state.current = props.offset
+                                computeNewTarget()
+                            }
+                        })
                     }
                     break;
             }
