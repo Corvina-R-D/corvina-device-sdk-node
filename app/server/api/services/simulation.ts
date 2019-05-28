@@ -109,6 +109,7 @@ export class DataSimulator {
     /*! dependees: exiting dependency edges in dep graph */
     public depsOut: Map<string, DataSimulator>;
 
+    public value : any;
     public lastSentValue : any;
 
     static simulators = new Array<DataSimulator>();
@@ -132,7 +133,7 @@ export class DataSimulator {
             target.depsOut.set(source.tag, source)
             DataSimulator.sorted = false
         }
-        return target.lastSentValue;
+        return target.value;
     }
 
 
@@ -191,6 +192,7 @@ export class DataSimulator {
                     DataSimulator.sorted = true;
                 }
 
+                //console.log(DataSimulator.simulators.length)
                 //DataSimulator.simulators.forEach((value) => { console.log( value.tag ) })
 
                 DataSimulator.simulators.forEach((value) => { value.loop() })
@@ -257,17 +259,17 @@ export class DataSimulator {
     async loop() {
         //console.log("loop!!!")
         const ts = Date.now()
-        let value = null;
+        this.value = null;
         if (!this.desc) {
             switch (this.type) {
                 case 'integer':
-                    value = (Math.random() * this.defAmplitude) | 0;
+                    this.value = (Math.random() * this.defAmplitude) | 0;
                     break;
                 case 'double':
-                    value = this.defAmplitude * Math.sin(this.defPhase + ts * 2 * Math.PI / this.defPeriod)
+                    this.value = this.defAmplitude * Math.sin(this.defPhase + ts * 2 * Math.PI / this.defPeriod)
                     break;
                 case 'string':
-                    value = Math.random().toString();
+                    this.value = Math.random().toString();
                     break;
             }
         } else {
@@ -279,28 +281,28 @@ export class DataSimulator {
                             if (!props._f) {
                                 props._f = ( new Function("$", props.f) as () => any )
                             }
-                            value = props._f.call(this, (t) => { return DataSimulator.$(this, t) })
+                            this.value = props._f.call(this, (t) => { return DataSimulator.$(this, t) })
                         } catch(e) {
                             console.log()
                             console.log("Error evaluating", e)
                         }
-                        if (value == null || value == undefined) {
+                        if (this.value == null || this.value == undefined) {
                             return
                         }
 
-                        let noised = this.applyNoise(value)
+                        let noised = this.applyNoise(this.value)
                         switch (this.type) {
                             case 'integer':
-                                value = ~~noised;
+                                this.value = ~~noised;
                                 break;
                             case 'double':
-                                value = noised;
+                                this.value = noised;
                                 break;
                             case 'string':
-                                value = (typeof noised == 'string' || ((noised as any) instanceof String )) ? noised : JSON.stringify(noised);
+                                this.value = (typeof noised == 'string' || ((noised as any) instanceof String )) ? noised : JSON.stringify(noised);
                                 break;
                         }
-                        value = this.nullify(value)
+                        this.value = this.nullify(this.value)
                     }
                     break;
                 case SimulationType.CONST:
@@ -309,16 +311,16 @@ export class DataSimulator {
                         let noised = this.applyNoise(props.value)
                         switch (this.type) {
                             case 'integer':
-                                value = ~~noised;
+                                this.value = ~~noised;
                                 break;
                             case 'double':
-                                value = noised;
+                                this.value = noised;
                                 break;
                             case 'string':
-                                value = (typeof noised == 'string' || ((noised as any) instanceof String )) ? noised : JSON.stringify(noised);
+                                this.value = (typeof noised == 'string' || ((noised as any) instanceof String )) ? noised : JSON.stringify(noised);
                                 break;
                         }
-                        value = this.nullify(value)
+                        this.value = this.nullify(this.value)
                     }
                     break;
                 case SimulationType.SINE:
@@ -327,17 +329,17 @@ export class DataSimulator {
                         let v = this.applyNoise(props.offset + props.amplitude * Math.sin(props.phase + ts * 2 * Math.PI / (1000 * props.period)))
                         switch (this.type) {
                             case 'integer':
-                                value = ~~v;
-                                value = this.nullify(value)
+                                this.value = ~~v;
+                                this.value = this.nullify(this.value)
                                 break;
                             case 'double':
-                                value = v;
+                                this.value = v;
                                 break;
                             case 'string':
-                                value = (typeof v == 'string' || ((v as any) instanceof String )) ? v : JSON.stringify(v);
+                                this.value = (typeof v == 'string' || ((v as any) instanceof String )) ? v : JSON.stringify(v);
                                 break;
                         }
-                        value = this.nullify(value)
+                        this.value = this.nullify(this.value)
                     }
                     break;
                 case SimulationType.STEP:
@@ -396,17 +398,17 @@ export class DataSimulator {
 
                         switch (this.type) {
                             case 'integer':
-                                value = ~~noised;
+                                this.value = ~~noised;
                                 break;
                             case 'double':
-                                value = noised;
+                                this.value = noised;
                                 break;
                             case 'string':
-                                value = (typeof noised == 'string' || ((noised as any) instanceof String ))  ? noised : JSON.stringify(noised);
+                                this.value = (typeof noised == 'string' || ((noised as any) instanceof String ))  ? noised : JSON.stringify(noised);
                                 break;
                         }
 
-                        value = this.nullify(value, (o: boolean, n: boolean) => {
+                        this.value = this.nullify(this.value, (o: boolean, n: boolean) => {
                             if (o == true && n == false) {
                                 props.state.current = props.offset
                                 computeNewTarget()
@@ -417,10 +419,10 @@ export class DataSimulator {
             }
         }
 
-        if ( !this.filterDuplications || JSON.stringify(value) != JSON.stringify(this.lastSentValue)) {
+        if ( !this.filterDuplications || JSON.stringify(this.value) != JSON.stringify(this.lastSentValue)) {
             try {
-                if ( await this.callback(this.tag, value, ts) ) {
-                    this.lastSentValue = value;
+                if ( await this.callback(this.tag, this.value, ts) ) {
+                    this.lastSentValue = this.value;
                 }
             } catch(e) {}
         }
@@ -428,7 +430,7 @@ export class DataSimulator {
 
 
     static clear() {
-        DataSimulator.simulators = new Array<DataSimulator>();
+        DataSimulator.sorted = false
     }
 }
 
