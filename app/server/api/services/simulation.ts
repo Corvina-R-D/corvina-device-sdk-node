@@ -408,7 +408,10 @@ export class DataSimulator {
                                 break;
                         }
 
-                        this.value = this.nullify(this.value, (o: boolean, n: boolean) => {
+                        this.nullify(this.value, (o: boolean, n: boolean) => {
+                            if (n == true) {
+                                this.value = 0
+                            }
                             if (o == true && n == false) {
                                 this.value = props.offset
                                 props.state.current = props.offset
