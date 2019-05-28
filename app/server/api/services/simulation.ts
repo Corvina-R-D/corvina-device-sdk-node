@@ -410,6 +410,7 @@ export class DataSimulator {
 
                         this.value = this.nullify(this.value, (o: boolean, n: boolean) => {
                             if (o == true && n == false) {
+                                this.value = props.offset
                                 props.state.current = props.offset
                                 computeNewTarget()
                             }
