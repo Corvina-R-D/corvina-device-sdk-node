@@ -357,10 +357,10 @@ export class DataSimulator {
                             const rand = (Math.random() - 0.5)
                             props.state.target = props.state.origin + rand * props.amplitude
                             if (props.state.target > props.offset + props.amplitude) {
-                                props.state.target = props.offset + props.amplitude
+                                props.state.target = props.state.origin - rand * props.amplitude
                             }
                             if (props.state.target < props.offset) {
-                                props.state.target = props.offset
+                                props.state.target = props.state.origin - rand * props.amplitude
                             }
                             const rand2 = Math.random()
                             props.state.duration = 1000 * (props.dt_min + (rand2 * (props.dt_max - props.dt_min)))
