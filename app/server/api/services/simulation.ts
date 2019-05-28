@@ -104,14 +104,37 @@ export class DataSimulator {
     private defPhase;
     private defPeriod;
     private desc : SimulationDesc;
-    private lastSentValue : any;
     private filterDuplications : boolean;
 
-    static simulators = new Array<DataSimulator>();
-    static inited = false;
+    /*! dependees: exiting dependency edges in dep graph */
+    public depsOut: Map<string, DataSimulator>;
 
-    // global vars
-    static vars: Map<string, any>;
+    public lastSentValue : any;
+
+    static simulators = new Array<DataSimulator>();
+    static simulatorsByTagName: Map<string, DataSimulator>;
+
+    static inited = false;
+    static sorted = false;
+
+    /*! Getter function to access cached value from other simulators by tag name */
+    static $ = (source: DataSimulator, tagName : string) => {
+        let target : DataSimulator = DataSimulator.simulatorsByTagName.get(tagName)
+        if (target == undefined) {
+            console.log(`Cannot resolve dependency ${tagName}`)
+        }
+        if (!target.depsOut) {
+            target.depsOut = new Map<string, DataSimulator>();
+        }
+
+        if (!target.depsOut.has(source.tag)) {
+            console.log(`TRACKED DEPENDENCY FROM ${source.tag} TO ${target.tag}`)
+            target.depsOut.set(source.tag, source)
+            DataSimulator.sorted = false
+        }
+        return target.lastSentValue;
+    }
+
 
     constructor(tag: string, type: string, callback: (tagName: string, value: number, ts: number) => Promise<boolean>, desc: SimulationDesc) {
         this.tag = tag;
@@ -119,13 +142,13 @@ export class DataSimulator {
         this.callback = callback;
         this.desc = desc
 
-        if (!DataSimulator.vars) {
-            DataSimulator.vars = new Map<string, any>()
+        if (!DataSimulator.simulatorsByTagName) {
+            DataSimulator.simulatorsByTagName = new Map<string, DataSimulator>()
         }
 
-        this.filterDuplications = !!(() => { try { return JSON.parse(process.env.FILTER_DUPS) } catch (err) { return true } })()
+        DataSimulator.simulatorsByTagName.set(tag, this)
 
-        DataSimulator.simulators.push(this)
+        this.filterDuplications = !!(() => { try { return JSON.parse(process.env.FILTER_DUPS) } catch (err) { return true } })()
 
         this.defAmplitude = 500 * Math.random();
         this.defPhase = Math.random() * 4 * Math.PI
@@ -133,6 +156,43 @@ export class DataSimulator {
 
         if (!DataSimulator.inited) {
             setInterval(() => {
+                console.log('')
+                if (!DataSimulator.inited || !DataSimulator.sorted) {
+                    let idx = DataSimulator.simulatorsByTagName.size;
+                    DataSimulator.simulators = new Array(idx)
+
+                    for(let [k,d] of DataSimulator.simulatorsByTagName) {
+                        (d as any).visited = false
+                    }
+
+                    const visit = (n: DataSimulator) : boolean => {
+                        if ( (n as any).visited == true) {
+                            return false
+                        }
+                        (n as any).visited = true;
+
+                        if (n.depsOut) {
+                            for( let [k,v] of n.depsOut ) {
+                                visit(v)
+                            }
+                        }
+                        idx--
+                        if (idx < 0) {
+                            return false
+                        }
+                        DataSimulator.simulators[idx] = n
+                        return true;
+                    }
+
+                    for(let [k,d] of DataSimulator.simulatorsByTagName) {
+                        visit(d)
+                    }
+
+                    DataSimulator.sorted = true;
+                }
+
+                //DataSimulator.simulators.forEach((value) => { console.log( value.tag ) })
+
                 DataSimulator.simulators.forEach((value) => { value.loop() })
             }, 1000);
             DataSimulator.inited = true;
@@ -219,7 +279,7 @@ export class DataSimulator {
                             if (!props._f) {
                                 props._f = ( new Function("$", props.f) as () => any )
                             }
-                            value = props._f.call(this, (t) => { return DataSimulator.vars.get(t) })
+                            value = props._f.call(this, (t) => { return DataSimulator.$(this, t) })
                         } catch(e) {
                             console.log()
                             console.log("Error evaluating", e)
@@ -360,7 +420,6 @@ export class DataSimulator {
         if ( !this.filterDuplications || JSON.stringify(value) != JSON.stringify(this.lastSentValue)) {
             try {
                 if ( await this.callback(this.tag, value, ts) ) {
-                    DataSimulator.vars.set(this.tag, value)
                     this.lastSentValue = value;
                 }
             } catch(e) {}
