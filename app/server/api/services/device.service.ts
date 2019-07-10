@@ -49,6 +49,10 @@ export class DeviceService {
     private readyToTransmit: boolean;
     private licenseData: LicenseData;
     private mqttClient: MqttClient;
+    
+    private msgSentStats: number = 0;
+    private byteSentStats: number = 0;
+    private lastDateStats: number = Date.now()
 
     private empyCacheTopic: string;
     private introspectionTopic: string;
@@ -410,6 +414,15 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 return false;
             } else {
                 const payload = this.serializeMessage({ v: dp.value, t: Date.now() })
+                this.byteSentStats += payload.length
+                this.msgSentStats += 1
+                let timeDiff = Date.now() - this.lastDateStats
+                if (timeDiff > 10000) {
+                    console.log(`SEND STATS: ${1000*this.byteSentStats / timeDiff} msg/s ${1000*this.msgSentStats / timeDiff} byte/s `)
+                    this.byteSentStats = 0
+                    this.msgSentStats = 0
+                    this.lastDateStats = this.lastDateStats + timeDiff;
+                }
                 console.log("GOING TO SEND TO TOPIC", /* this.tagToTopicMap, */ topic, payload)
                 try { 
                     await this.mqttClient.publish(topic, payload)
