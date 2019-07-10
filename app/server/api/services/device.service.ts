@@ -418,7 +418,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 this.msgSentStats += 1
                 let timeDiff = Date.now() - this.lastDateStats
                 if (timeDiff > 10000) {
-                    console.log(`SEND STATS: ${1000*this.byteSentStats / timeDiff} msg/s ${1000*this.msgSentStats / timeDiff} byte/s `)
+                    console.log(`SEND STATS: ${1000*this.byteSentStats / timeDiff} bytes/s ${1000*this.msgSentStats / timeDiff} msg/s `)
                     this.byteSentStats = 0
                     this.msgSentStats = 0
                     this.lastDateStats = this.lastDateStats + timeDiff;
