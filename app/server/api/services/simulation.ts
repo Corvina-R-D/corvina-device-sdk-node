@@ -105,6 +105,7 @@ export class DataSimulator {
     private defPeriod;
     private desc : SimulationDesc;
     private filterDuplications : boolean;
+    private simulationMs: number;
 
     /*! dependees: exiting dependency edges in dep graph */
     public depsOut: Map<string, DataSimulator>;
@@ -150,6 +151,7 @@ export class DataSimulator {
         DataSimulator.simulatorsByTagName.set(tag, this)
 
         this.filterDuplications = !!(() => { try { return JSON.parse(process.env.FILTER_DUPS) } catch (err) { return true } })()
+        this.simulationMs = (() => { try { return JSON.parse(process.env.SIMULATION_MS) } catch (err) { return 1000 } })()
 
         this.defAmplitude = 500 * Math.random();
         this.defPhase = Math.random() * 4 * Math.PI
@@ -196,7 +198,7 @@ export class DataSimulator {
                 //DataSimulator.simulators.forEach((value) => { console.log( value.tag ) })
 
                 DataSimulator.simulators.forEach((value) => { value.loop() })
-            }, 1000);
+            }, this.simulationMs);
             DataSimulator.inited = true;
         }
 
@@ -235,7 +237,7 @@ export class DataSimulator {
                 if (dice < props.nullable.probability) {
                     props.nullable.state.nullifying = true
                     props.nullable.state.start = now
-                    props.nullable.state.duration = 1000 * ( props.nullable.dt_min + Math.random() * ( props.nullable.dt_max - props.nullable.dt_min) )
+                    props.nullable.state.duration = this.simulationMs * ( props.nullable.dt_min + Math.random() * ( props.nullable.dt_max - props.nullable.dt_min) )
                 }
             } else {
                 if ( now > (props.nullable.state.start + props.nullable.state.duration)) {
@@ -326,7 +328,7 @@ export class DataSimulator {
                 case SimulationType.SINE:
                     {
                         let props = this.desc as SineSimulationProperties
-                        let v = this.applyNoise(props.offset + props.amplitude * Math.sin(props.phase + ts * 2 * Math.PI / (1000 * props.period)))
+                        let v = this.applyNoise(props.offset + props.amplitude * Math.sin(props.phase + ts * 2 * Math.PI / (this.simulationMs * props.period)))
                         switch (this.type) {
                             case 'integer':
                                 this.value = ~~v;
@@ -363,7 +365,7 @@ export class DataSimulator {
                                 props.state.target = props.state.origin - rand * props.amplitude
                             }
                             const rand2 = Math.random()
-                            props.state.duration = 1000 * (props.dt_min + (rand2 * (props.dt_max - props.dt_min)))
+                            props.state.duration = this.simulationMs * (props.dt_min + (rand2 * (props.dt_max - props.dt_min)))
                             props.state.start = ts
                         }
 
