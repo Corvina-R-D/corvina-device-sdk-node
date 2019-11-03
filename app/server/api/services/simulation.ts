@@ -1,6 +1,9 @@
 import { version } from "bluebird";
 import { stringify } from "querystring";
 import { promises } from "fs";
+import Mustache from "mustache"
+
+import { AlarmDesc, AlarmState, AlarmData, MultiLangString, SimulationDesc, SimulationType, NoiseSimulationType } from './commontypes'
 
 //import ease from 'd3-ease'
 const ease  = require('d3-ease')
@@ -19,48 +22,6 @@ interface StepSimulationStateMachine {
     current: number,
     duration: number,
     start: number
-}
-
-
-enum NoiseSimulationType {
-    ABSOLUTE = "abs",
-    PERCENT = "%"
-}
-
-export interface NoiseSimulationProperties
-{
-    type: NoiseSimulationType
-    amplitude: number
-}
-
-
-interface NullableSimulationStateMachine {
-    nullifying: boolean
-    start: number
-    duration: number
-}
-
-export interface NullableSimulationProperties
-{
-    probability: number
-    dt_min: number
-    dt_max: number
-    state ?: NullableSimulationStateMachine
-}
-
-
-enum SimulationType {
-    SINE = "sine",
-    STEP = "step",
-    CONST = "const",
-    FUNCTION = "function"
-}
-
-
-export interface SimulationDesc {
-    type: SimulationType,
-    noise: NoiseSimulationProperties
-    nullable: NullableSimulationProperties
 }
 
 export interface StepSimulationProperties extends SimulationDesc
@@ -94,81 +55,55 @@ export interface ConstSimulationProperties extends SimulationDesc
     value: number
 }
 
+interface AbstractSimulator
+{
+    loop();
+}
 
+export class BaseSimulator implements AbstractSimulator {
 
-export class DataSimulator {
-    private callback: (tagName: string, value: number, ts: number) => Promise<boolean>;
-    private type;
-    private tag;
-    private defAmplitude;
-    private defPhase;
-    private defPeriod;
-    private desc : SimulationDesc;
-    private filterDuplications : boolean;
-    private simulationMs: number;
+    protected tag;
+
+    
 
     /*! dependees: exiting dependency edges in dep graph */
-    public depsOut: Map<string, DataSimulator>;
+    public depsOut: Map<string, BaseSimulator>;
 
-    public value : any;
-    public lastSentValue : any;
+    public value: any;
+    public lastSentValue: any;
 
-    static simulators = new Array<DataSimulator>();
-    static simulatorsByTagName: Map<string, DataSimulator>;
+    static simulators = new Array<BaseSimulator>();
+    static simulatorsByTagName: Map<string, BaseSimulator>;
 
     static inited = false;
     static sorted = false;
 
-    /*! Getter function to access cached value from other simulators by tag name */
-    static $ = (source: DataSimulator, tagName : string) => {
-        let target : DataSimulator = DataSimulator.simulatorsByTagName.get(tagName)
-        if (target == undefined) {
-            console.log(`Cannot resolve dependency ${tagName}`)
-        }
-        if (!target.depsOut) {
-            target.depsOut = new Map<string, DataSimulator>();
-        }
-
-        if (!target.depsOut.has(source.tag)) {
-            console.log(`TRACKED DEPENDENCY FROM ${source.tag} TO ${target.tag}`)
-            target.depsOut.set(source.tag, source)
-            DataSimulator.sorted = false
-        }
-        return target.value;
-    }
+    static filterDuplications: boolean;
+    static simulationMs: number;
 
 
-    constructor(tag: string, type: string, callback: (tagName: string, value: number, ts: number) => Promise<boolean>, desc: SimulationDesc) {
+    constructor(tag: string) {
         this.tag = tag;
-        this.type = type;
-        this.callback = callback;
-        this.desc = desc
 
-        if (!DataSimulator.simulatorsByTagName) {
-            DataSimulator.simulatorsByTagName = new Map<string, DataSimulator>()
+        if (!BaseSimulator.simulatorsByTagName) {
+            BaseSimulator.simulatorsByTagName = new Map<string, BaseSimulator>()
         }
 
-        DataSimulator.simulatorsByTagName.set(tag, this)
+        BaseSimulator.filterDuplications = !!(() => { try { return JSON.parse(process.env.FILTER_DUPS) } catch (err) { return true } })()
+        BaseSimulator.simulationMs = (() => { try { return JSON.parse(process.env.SIMULATION_MS) } catch (err) { return 1000 } })()
 
-        this.filterDuplications = !!(() => { try { return JSON.parse(process.env.FILTER_DUPS) } catch (err) { return true } })()
-        this.simulationMs = (() => { try { return JSON.parse(process.env.SIMULATION_MS) } catch (err) { return 1000 } })()
-
-        this.defAmplitude = 500 * Math.random();
-        this.defPhase = Math.random() * 4 * Math.PI
-        this.defPeriod = Math.random() * 30000;
-
-        if (!DataSimulator.inited) {
+        if (!BaseSimulator.inited) {
             setInterval(() => {
                 console.log('')
-                if (!DataSimulator.inited || !DataSimulator.sorted) {
-                    let idx = DataSimulator.simulatorsByTagName.size;
-                    DataSimulator.simulators = new Array(idx)
+                if (!BaseSimulator.inited || !BaseSimulator.sorted) {
+                    let idx = BaseSimulator.simulatorsByTagName.size;
+                    BaseSimulator.simulators = new Array(idx)
 
-                    for(let [k,d] of DataSimulator.simulatorsByTagName) {
+                    for(let [k,d] of BaseSimulator.simulatorsByTagName) {
                         (d as any).visited = false
                     }
 
-                    const visit = (n: DataSimulator) : boolean => {
+                    const visit = (n: BaseSimulator) : boolean => {
                         if ( (n as any).visited == true) {
                             return false
                         }
@@ -183,24 +118,72 @@ export class DataSimulator {
                         if (idx < 0) {
                             return false
                         }
-                        DataSimulator.simulators[idx] = n
+                        BaseSimulator.simulators[idx] = n
                         return true;
                     }
 
-                    for(let [k,d] of DataSimulator.simulatorsByTagName) {
+                    for(let [k,d] of BaseSimulator.simulatorsByTagName) {
                         visit(d)
                     }
 
-                    DataSimulator.sorted = true;
+                    BaseSimulator.sorted = true;
                 }
 
                 //console.log(DataSimulator.simulators.length)
                 //DataSimulator.simulators.forEach((value) => { console.log( value.tag ) })
 
-                DataSimulator.simulators.forEach((value) => { value.loop() })
-            }, this.simulationMs);
-            DataSimulator.inited = true;
+                BaseSimulator.simulators.forEach((value) => { value.loop() })
+            }, BaseSimulator.simulationMs);
+            BaseSimulator.inited = true;
         }
+
+    }
+    
+    /*! Getter function to access cached value from other simulators by tag name */
+    static $ = (source: BaseSimulator, tagName: string) => {
+        let target: BaseSimulator = BaseSimulator.simulatorsByTagName.get(tagName)
+        if (target == undefined) {
+            console.log(`Cannot resolve dependency ${tagName}`)
+        }
+        if (!target.depsOut) {
+            target.depsOut = new Map<string, BaseSimulator>();
+        }
+
+        if (!target.depsOut.has(source.tag)) {
+            console.log(`TRACKED DEPENDENCY FROM ${source.tag} TO ${target.tag}`)
+            target.depsOut.set(source.tag, source)
+            BaseSimulator.sorted = false
+        }
+        return target.value;
+    }
+
+    loop() {}
+    
+}
+
+export class DataSimulator extends BaseSimulator {
+    private callback: (tagName: string, value: number, ts: number) => Promise<boolean>;
+    private type;
+    private defAmplitude;
+    private defPhase;
+    private defPeriod;
+    private desc : SimulationDesc;
+
+
+    constructor(tag: string, type: string, callback: (tagName: string, value: number, ts: number) => Promise<boolean>, desc: SimulationDesc) {
+        super (tag);
+
+        this.type = type;
+        this.callback = callback;
+        this.desc = desc
+
+        DataSimulator.simulatorsByTagName.set(tag, this)
+
+
+        this.defAmplitude = 500 * Math.random();
+        this.defPhase = Math.random() * 4 * Math.PI
+        this.defPeriod = Math.random() * 30000;
+
 
     }
 
@@ -237,7 +220,7 @@ export class DataSimulator {
                 if (dice < props.nullable.probability) {
                     props.nullable.state.nullifying = true
                     props.nullable.state.start = now
-                    props.nullable.state.duration = this.simulationMs * ( props.nullable.dt_min + Math.random() * ( props.nullable.dt_max - props.nullable.dt_min) )
+                    props.nullable.state.duration = BaseSimulator.simulationMs * ( props.nullable.dt_min + Math.random() * ( props.nullable.dt_max - props.nullable.dt_min) )
                 }
             } else {
                 if ( now > (props.nullable.state.start + props.nullable.state.duration)) {
@@ -283,7 +266,7 @@ export class DataSimulator {
                             if (!props._f) {
                                 props._f = ( new Function("$", props.f) as () => any )
                             }
-                            this.value = props._f.call(this, (t) => { return DataSimulator.$(this, t) })
+                            this.value = props._f.call(this, (t) => { return BaseSimulator.$(this, t) })
                         } catch(e) {
                             console.log()
                             console.log("Error evaluating", e)
@@ -328,7 +311,7 @@ export class DataSimulator {
                 case SimulationType.SINE:
                     {
                         let props = this.desc as SineSimulationProperties
-                        let v = this.applyNoise(props.offset + props.amplitude * Math.sin(props.phase + ts * 2 * Math.PI / (this.simulationMs * props.period)))
+                        let v = this.applyNoise(props.offset + props.amplitude * Math.sin(props.phase + ts * 2 * Math.PI / (BaseSimulator.simulationMs * props.period)))
                         switch (this.type) {
                             case 'integer':
                                 this.value = ~~v;
@@ -365,7 +348,7 @@ export class DataSimulator {
                                 props.state.target = props.state.origin - rand * props.amplitude
                             }
                             const rand2 = Math.random()
-                            props.state.duration = this.simulationMs * (props.dt_min + (rand2 * (props.dt_max - props.dt_min)))
+                            props.state.duration = BaseSimulator.simulationMs * (props.dt_min + (rand2 * (props.dt_max - props.dt_min)))
                             props.state.start = ts
                         }
 
@@ -425,7 +408,7 @@ export class DataSimulator {
             }
         }
 
-        if ( !this.filterDuplications || JSON.stringify(this.value) != JSON.stringify(this.lastSentValue)) {
+        if ( !BaseSimulator.filterDuplications || JSON.stringify(this.value) != JSON.stringify(this.lastSentValue)) {
             try {
                 if ( await this.callback(this.tag, this.value, ts) ) {
                     this.lastSentValue = this.value;
@@ -440,4 +423,106 @@ export class DataSimulator {
     }
 }
 
-export default DataSimulator;
+export class AlarmSimulator extends BaseSimulator
+{
+    private callback: ( AlarmDesc ) => Promise<boolean>;
+    private alarm: AlarmDesc;
+    private alarmData: AlarmData;
+    private tagRefs : any;
+
+    constructor(alarm: AlarmDesc, callback: (AlarmData) => Promise<boolean>) {
+        super (alarm.source)
+        
+        this.alarm = alarm;
+
+        this.callback = callback;
+
+        this.alarmData = {
+            severity: this.alarm.severity,
+            tag: this.alarm.source,
+            name: this.alarm.name
+        } as any as AlarmData;
+
+        if ( this.alarm.desc && this.alarm.desc["en"] ) {
+            this.tagRefs = {}
+            const tokens = Mustache.parse(this.alarm.desc["en"], [ "[", "]" ] )
+            for( let t of tokens ) {
+                if ( t[0] == 'name') {
+                    this.tagRefs[t[1]] = null
+                } 
+            }
+        }
+
+        BaseSimulator.simulatorsByTagName.set(`${alarm.name}.${this.alarm.source}`, this);
+    }
+
+    async loop() {
+        if (!this.alarm.simulation) {
+            return
+        }
+
+        console.log("loop!!!")
+        const ts = Date.now()
+        this.value = null;
+        {
+            let props = this.alarm.simulation as FunctionSimulationProperties
+            try {
+                if (!props._f) {
+                    // _f is a function with parameters $ and $src and body props.f
+                    props._f = (new Function("$", "$src", props.f) as () => any)
+                }
+                // call _f passing the function to resolve simulator by tag name as $, and $src the reference to tag source
+                this.value = props._f.call(this, (t) => { return BaseSimulator.$(this, t), BaseSimulator.$(this,this.alarm.source) })
+            } catch (e) {
+                console.log()
+                console.log("Error evaluating", e)
+            }
+            if (this.value == null || this.value == undefined) {
+                return
+            }
+        }
+
+        if ( !BaseSimulator.filterDuplications 
+            || JSON.stringify(this.value) != JSON.stringify(this.lastSentValue)) {
+            try {
+                let tagValue = BaseSimulator.$(this, this.alarm.source)
+                switch(typeof tagValue) {
+                    case 'number':
+                        this.alarmData.value_double = tagValue;
+                        break;
+                    case 'string':
+                        this.alarmData.value_string = tagValue;
+                        break;
+                    case 'boolean':
+                        this.alarmData.value_boolean = tagValue;
+                        break;
+                }
+
+                if (this.tagRefs) {
+                    for(let r in this.tagRefs) {
+                       this.tagRefs[r] = BaseSimulator.$(this, r) 
+                    }
+                    console.log(this.tagRefs)
+                    this.alarmData.description = Mustache.render(
+                        this.alarm.desc["en"], this.tagRefs, {}, ["[", "]"])
+                    
+                }
+
+
+                this.alarmData.state = AlarmState.ALARM_ENABLED
+                    | ( this.value ? AlarmState.ALARM_ACTIVE : AlarmState.ALARM_NONE)
+                    | this.alarmData.state & AlarmState.ALARM_ENABLED ;
+
+                this.alarmData.timestamp = new Date();
+
+                if ( await this.callback(this.alarmData) ) {
+                    console.log("UPDATE ALARM VALUE ", this.lastSentValue, this.value)
+                    this.lastSentValue = this.value;
+                    console.log(this.alarmData)
+                }
+            } catch(e) {}
+        }
+
+    }
+
+}

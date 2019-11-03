@@ -15,13 +15,8 @@ interface CSRData {
     clientKey: string;
 }
 
-import { DataSimulator, SimulationDesc } from './simulation'
-
-export interface TagDesc {
-    name: string,
-    type: string,
-    simulation: SimulationDesc
-}
+import { DataSimulator, AlarmSimulator } from './simulation'
+import { TagDesc, MultiLangString, SimulationDesc, AlarmDesc, DataPoint, AlarmState, AlarmData} from './commontypes'
 
 enum PacketFormatEnum {
     JSON = "json",
@@ -33,14 +28,12 @@ export interface DeviceConfig {
     pairingEndpoint?: string;
     availableTags?: Array<TagDesc>; // json array string 
     simulateTags?: boolean;
+    availableAlarms?: Array<AlarmDesc>; // json array string 
+    simulateAlarms?: boolean;
     packetFormat?: PacketFormatEnum;
 }
 
-export interface DataPoint {
-    tagName: string; // tag name
-    value: any;
-    timestamp: number; // posix time
-}
+
 
 export class DeviceService {
 
@@ -57,7 +50,7 @@ export class DeviceService {
     private empyCacheTopic: string;
     private introspectionTopic: string;
     // publish introspection (required interfaces)
-    private static baseIntrospection: string = "com.corvina.control.sub.Config:0:2;com.corvina.control.pub.Config:0:2";
+    private static baseIntrospection: string = "com.corvina.control.sub.Config:0:2;com.corvina.control.pub.Config:0:2;com.corvina.control.pub.DeviceAlarm:1:0";
     private customIntrospections: string;
     private applyConfigTopic: string;
     private configTopic: string;
@@ -79,6 +72,8 @@ export class DeviceService {
                 pairingEndpoint: process.env.PAIRING_ENDPOINT,
                 availableTags: (() => { try { return JSON.parse(process.env.AVAILABLE_TAGS) } catch (err) { return [] } })(),
                 simulateTags: !!(() => { try { return JSON.parse(process.env.SIMULATE_TAGS) } catch (err) { return [] } })(),
+                availableAlarms: (() => { try { return JSON.parse(process.env.AVAILABLE_ALARMS) } catch (err) { return [] } })(),
+                simulateAlarms: !!(() => { try { return JSON.parse(process.env.SIMULATE_ALARMS) } catch (err) { return [] } })(),
                 packetFormat: process.env.PACKET_FORMAT as PacketFormatEnum
             }, true)
     }
@@ -121,6 +116,8 @@ ACTIVATION_KEY=${this.deviceConfig.activationKey}
 PAIRING_ENDPOINT=${this.deviceConfig.pairingEndpoint}
 AVAILABLE_TAGS=${JSON.stringify(this.deviceConfig.availableTags)}
 SIMULATE_TAGS=${this.deviceConfig.simulateTags}
+AVAILABLE_ALARMS=${JSON.stringify(this.deviceConfig.availableAlarms)}
+SIMULATE_ALARMS=${this.deviceConfig.simulateAlarms}
 PACKET_FORMAT=${this.deviceConfig.packetFormat}`
         }
         fs.writeFileSync(envFile, currentContent)
@@ -266,6 +263,9 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 if (this.deviceConfig.simulateTags) {
                     this.deviceConfig.availableTags.forEach(
                         (value) => { new DataSimulator(value.name, value.type, async (t, v, ts) => { if (this.ready()) { return this.post([{ tagName: t, value: v, timestamp: ts }]);  } return false;  } , value.simulation) }
+                    )
+                    this.deviceConfig.availableAlarms.forEach(
+                        (value) => { new AlarmSimulator(value, async (data: AlarmData) => { if (this.ready()) { return this.postAlarm(data);  } return false;  } ) }
                     )
                 }
         
@@ -432,6 +432,13 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             }
         }
         return true;
+    }
+
+    async postAlarm(alarmData: AlarmData): Promise<boolean> {
+        const payload = this.serializeMessage(alarmData)
+        console.log("GOING TO SEND ALARM", /* this.tagToTopicMap, */ payload)
+        await this.mqttClient.publish(`${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.DeviceAlarm/`, payload)
+        return true
     }
 }
 

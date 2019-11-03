@@ -13,8 +13,10 @@
   },
   "dependencies": {
     "@types/axios": "^0.14.0",
+    "@types/bson": "^4.0.0",
     "@types/d3-ease": "^1.0.8",
     "@types/mqtt": "^2.5.0",
+    "@types/mustache": "^0.8.32",
     "async-mqtt": "^2.0.0",
     "axios": "^0.18.0",
     "body-parser": "^1.18.3",
@@ -25,6 +27,7 @@
     "express": "^4.16.4",
     "express-swagger-generator": "^1.1.10",
     "mqtt": "^2.18.8",
+    "mustache": "^3.1.0",
     "pem": "^1.13.2",
     "pino": "^5.8.1",
     "swagger-express-middleware": "^1.1.1"
