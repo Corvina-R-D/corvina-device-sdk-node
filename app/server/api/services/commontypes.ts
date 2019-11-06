@@ -59,6 +59,7 @@ export interface AlarmDesc {
     severity: number,
     ack_required: boolean,
     reset_required: boolean,
+    enabled: boolean,
     simulation: SimulationDesc
 }
 
@@ -72,7 +73,9 @@ export enum AlarmState {
     ALARM_NONE = 0,
     ALARM_ENABLED = 1,
     ALARM_ACTIVE = 2,
-    ALARM_ACKED = 4
+    ALARM_ACKED = 4,
+    ALARM_REQUIRES_ACK = 8,
+    ALARM_REQUIRES_RESET = 16
 }
 
 export interface AlarmData {

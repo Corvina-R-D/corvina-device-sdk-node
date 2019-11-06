@@ -434,13 +434,15 @@ export class AlarmSimulator extends BaseSimulator
         super (alarm.source)
         
         this.alarm = alarm;
+        this.alarm.enabled = true
 
         this.callback = callback;
 
         this.alarmData = {
             severity: this.alarm.severity,
             tag: this.alarm.source,
-            name: this.alarm.name
+            name: this.alarm.name,
+            state: this.alarm.enabled ? AlarmState.ALARM_ENABLED : AlarmState.ALARM_NONE
         } as any as AlarmData;
 
         if ( this.alarm.desc && this.alarm.desc["en"] ) {
@@ -456,12 +458,107 @@ export class AlarmSimulator extends BaseSimulator
         BaseSimulator.simulatorsByTagName.set(`${alarm.name}.${this.alarm.source}`, this);
     }
 
+    // Case ack required and reset required
+    //   ! active ! acked !ack_required  !reset_required
+    //   activate! => active !acked ack_required !reset_required
+    //   ack! => active acked !ack_required  reset_required
+    //   reset! => FAILS (need to be inactive) 
+    //   deactivate! => !active acked !ack_required  reset_required
+    //   reset! => !active !acked !ack_required  !reset_required
+
+    //   ! active ! acked !ack_required  !reset_required
+    //   activate! => active !acked ack_required !reset_required
+    //   ack! => active acked !ack_required !reset_required
+    //   deactivate! => !active acked !ack_required reset_required
+    //   reset! => !active !acked !ack_required  !reset_required
+
+    //   ! active ! acked !ack_required  !reset_required
+    //   activate! => active !acked ack_required !reset_required
+    //   deactivate! => !active !acked ack_required  !reset_required
+    //   ack! => !active acked !ack_required reset_required
+    //   reset! => !active !acked !ack_required  !reset_required
+
+    // Case ack required, reset not required
+    //   ! active ! acked !ack_required  !reset_required
+    //   activate! => active !acked ack_required !reset_required
+    //   ack! => active acked !ack_required !reset_required
+    //   deactivate! => !active acked !ack_required  !reset_required
+
+    //   ! active ! acked !ack_required  !reset_required
+    //   activate! => active !acked ack_required !reset_required
+    //   deactivate! => !active !acked ack_required !reset_required
+    //   ack! => !active acked !ack_required  !reset_required
+
+
+
+
+    acknoledge() {
+        if ( this.alarmData.state & AlarmState.ALARM_REQUIRES_ACK ) {
+            this.alarmData.state &= ~AlarmState.ALARM_REQUIRES_ACK
+            this.alarmData.state |= AlarmState.ALARM_ACKED
+            if (this.alarm.reset_required) {
+                this.alarmData.state |= AlarmState.ALARM_REQUIRES_RESET
+            }
+            this.propagate();
+        }
+    }
+
+    reset() {
+        if ( (this.alarmData.state & AlarmState.ALARM_REQUIRES_RESET) && !(this.alarmData.state & AlarmState.ALARM_ACTIVE) ) {
+            this.alarmData.state &= ~( AlarmState.ALARM_ACKED | AlarmState.ALARM_REQUIRES_RESET );
+            this.propagate();
+        }
+    }
+
+    disable() {
+        this.alarmData.state &= ~( AlarmState.ALARM_ENABLED | AlarmState.ALARM_ACKED | AlarmState.ALARM_REQUIRES_ACK | AlarmState.ALARM_REQUIRES_RESET )
+    }
+
+    enable() {
+        this.alarmData.state |= AlarmState.ALARM_ENABLED;
+        this.loop();
+    }
+
+    private async propagate() {
+        try {
+            let tagValue = BaseSimulator.$(this, this.alarm.source)
+            switch (typeof tagValue) {
+                case 'number':
+                    this.alarmData.value_double = tagValue;
+                    break;
+                case 'string':
+                    this.alarmData.value_string = tagValue;
+                    break;
+                case 'boolean':
+                    this.alarmData.value_boolean = tagValue;
+                    break;
+            }
+
+            if (this.tagRefs) {
+                for (let r in this.tagRefs) {
+                    this.tagRefs[r] = BaseSimulator.$(this, r)
+                }
+                console.log(this.tagRefs)
+                this.alarmData.description = Mustache.render(
+                    this.alarm.desc["en"], this.tagRefs, {}, ["[", "]"])
+
+            }
+            this.alarmData.timestamp = new Date();
+
+            if (await this.callback(this.alarmData)) {
+                console.log("UPDATED ALARM VALUE ", this.lastSentValue, this.value, this.alarmData)
+            }
+        } catch (e) {
+            console.error(e)
+        }
+
+    }
+
     async loop() {
         if (!this.alarm.simulation) {
             return
         }
 
-        console.log("loop!!!")
         const ts = Date.now()
         this.value = null;
         {
@@ -474,7 +571,6 @@ export class AlarmSimulator extends BaseSimulator
                 // call _f passing the function to resolve simulator by tag name as $, and $src the reference to tag source
                 this.value = props._f.call(this, (t) => { return BaseSimulator.$(this, t), BaseSimulator.$(this,this.alarm.source) })
             } catch (e) {
-                console.log()
                 console.log("Error evaluating", e)
             }
             if (this.value == null || this.value == undefined) {
@@ -482,45 +578,28 @@ export class AlarmSimulator extends BaseSimulator
             }
         }
 
-        if ( !BaseSimulator.filterDuplications 
-            || JSON.stringify(this.value) != JSON.stringify(this.lastSentValue)) {
-            try {
-                let tagValue = BaseSimulator.$(this, this.alarm.source)
-                switch(typeof tagValue) {
-                    case 'number':
-                        this.alarmData.value_double = tagValue;
-                        break;
-                    case 'string':
-                        this.alarmData.value_string = tagValue;
-                        break;
-                    case 'boolean':
-                        this.alarmData.value_boolean = tagValue;
-                        break;
-                }
+        const changedValue = JSON.stringify(this.value) != JSON.stringify(this.lastSentValue)
 
-                if (this.tagRefs) {
-                    for(let r in this.tagRefs) {
-                       this.tagRefs[r] = BaseSimulator.$(this, r) 
-                    }
-                    console.log(this.tagRefs)
-                    this.alarmData.description = Mustache.render(
-                        this.alarm.desc["en"], this.tagRefs, {}, ["[", "]"])
-                    
-                }
+        if (changedValue) {
+            if (this.value) {
+                this.alarmData.state |= AlarmState.ALARM_ACTIVE;
+            } else {
+                this.alarmData.state &= ~AlarmState.ALARM_ACTIVE;
+            }
 
+            if (this.alarm.ack_required && this.value) {
+                this.alarmData.state |= AlarmState.ALARM_REQUIRES_ACK;
+            }
 
-                this.alarmData.state = AlarmState.ALARM_ENABLED
-                    | ( this.value ? AlarmState.ALARM_ACTIVE : AlarmState.ALARM_NONE)
-                    | this.alarmData.state & AlarmState.ALARM_ENABLED ;
+            /// reset ack status if not enabled
+            if (!this.alarm.enabled && !this.value) {
+                this.alarmData.state &= ~AlarmState.ALARM_REQUIRES_ACK;
+            }
 
-                this.alarmData.timestamp = new Date();
-
-                if ( await this.callback(this.alarmData) ) {
-                    console.log("UPDATE ALARM VALUE ", this.lastSentValue, this.value)
-                    this.lastSentValue = this.value;
-                    console.log(this.alarmData)
-                }
-            } catch(e) {}
+            if (this.alarm.enabled) {
+                await this.propagate();
+            }
+            this.lastSentValue = this.value;
         }
 
     }

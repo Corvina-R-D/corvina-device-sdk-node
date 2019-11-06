@@ -50,7 +50,7 @@ export class DeviceService {
     private empyCacheTopic: string;
     private introspectionTopic: string;
     // publish introspection (required interfaces)
-    private static baseIntrospection: string = "com.corvina.control.sub.Config:0:2;com.corvina.control.pub.Config:0:2;com.corvina.control.pub.DeviceAlarm:1:0";
+    private static baseIntrospection: string = "com.corvina.control.sub.Config:0:2;com.corvina.control.pub.Config:0:2;com.corvina.control.pub.DeviceAlarm:1:0;com.corvina.control.sub.DeviceAlarm:1:0";
     private customIntrospections: string;
     private applyConfigTopic: string;
     private configTopic: string;
@@ -294,6 +294,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                     case this.applyConfigTopic.toString():
                         this.applyConfig(JSON.parse(BSON.deserialize(message).v))
                         break;
+                    // TODO: ACK/RESET
                 }
             })
 
