@@ -82,6 +82,7 @@ export interface AlarmData {
     name: string,
     description: string,
     timestamp: Date,
+    eventTimestamp: Date,
     severity?: BSON.Int32,
     state: number,
     tag?: string,

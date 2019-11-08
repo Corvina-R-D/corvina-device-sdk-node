@@ -587,6 +587,11 @@ export class AlarmSimulator extends BaseSimulator
                 this.alarmData.state &= ~AlarmState.ALARM_ACTIVE;
             }
 
+            if (this.alarmData.state & AlarmState.ALARM_ACTIVE && !(this.alarmData.state & (AlarmState.ALARM_REQUIRES_ACK | AlarmState.ALARM_REQUIRES_RESET) )) {
+                // set a new event timestamp
+                this.alarmData.eventTimestamp = new Date();
+            }
+
             if (this.alarm.ack_required && this.value) {
                 this.alarmData.state |= AlarmState.ALARM_REQUIRES_ACK;
             }
