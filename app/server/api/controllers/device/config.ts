@@ -1,4 +1,5 @@
-import DeviceService, { DataPoint, DeviceConfig } from '../../services/device.service';
+import DeviceService, { DeviceConfig } from '../../services/device.service';
+import { DataPoint } from '../../services/commontypes';
 import { Request, Response } from 'express';
 
 /** Handles reconfiguration requests */
