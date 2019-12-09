@@ -359,6 +359,13 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
 
             // Get broker cert
             const brokerUrl = URL.parse(mqtt_protocol.broker_url)
+            // fix missing url
+            if (brokerUrl.hostname.length == 0) {
+                brokerUrl.hostname = URL.parse(this.licenseData.platformPairingApiUrl).host.replace("api.platform", "broker");
+                brokerUrl.host = brokerUrl.hostname + brokerUrl.host; 
+                brokerUrl.href = brokerUrl.protocol + "//" + brokerUrl.host;
+                mqtt_protocol.broker_url = brokerUrl.href;
+            }
 
 
 
