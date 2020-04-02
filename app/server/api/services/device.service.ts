@@ -26,6 +26,7 @@ enum PacketFormatEnum {
 export interface DeviceConfig {
     activationKey?: string;
     pairingEndpoint?: string;
+    availableTagsFile?: string; // json array string 
     availableTags?: Array<TagDesc>; // json array string 
     simulateTags?: boolean;
     availableAlarms?: Array<AlarmDesc>; // json array string 
@@ -66,11 +67,21 @@ export class DeviceService {
 
     constructor() {
         this.deviceConfig = {}
+        const availableTagsFile =  process.env.AVAILABLE_TAGS_FILE || "";
         this.reinit(
             {
                 activationKey: process.env.ACTIVATION_KEY,
                 pairingEndpoint: process.env.PAIRING_ENDPOINT,
-                availableTags: (() => { try { return JSON.parse(process.env.AVAILABLE_TAGS) } catch (err) { return [] } })(),
+                availableTagsFile: availableTagsFile,
+                availableTags: (() => { 
+                    try { 
+                            if (availableTagsFile.length) {
+                                return JSON.parse(fs.readFileSync(availableTagsFile).toString())
+                            }        
+                            return JSON.parse(process.env.AVAILABLE_TAGS) 
+                        } catch (err) { 
+                            return [] } 
+                    })(),
                 simulateTags: !!(() => { try { return JSON.parse(process.env.SIMULATE_TAGS) } catch (err) { return [] } })(),
                 availableAlarms: (() => { try { return JSON.parse(process.env.AVAILABLE_ALARMS) } catch (err) { return [] } })(),
                 simulateAlarms: !!(() => { try { return JSON.parse(process.env.SIMULATE_ALARMS) } catch (err) { return [] } })(),
@@ -114,7 +125,8 @@ export class DeviceService {
 # don't write below this line!!
 ACTIVATION_KEY=${this.deviceConfig.activationKey}
 PAIRING_ENDPOINT=${this.deviceConfig.pairingEndpoint}
-AVAILABLE_TAGS=${JSON.stringify(this.deviceConfig.availableTags)}
+AVAILABLE_TAGS_FILE=${this.deviceConfig.availableTagsFile || ""}
+AVAILABLE_TAGS=${ ( ! this.deviceConfig.availableTagsFile || this.deviceConfig.availableTagsFile.length == 0 ) ? JSON.stringify(this.deviceConfig.availableTags) : ''}
 SIMULATE_TAGS=${this.deviceConfig.simulateTags}
 AVAILABLE_ALARMS=${JSON.stringify(this.deviceConfig.availableAlarms)}
 SIMULATE_ALARMS=${this.deviceConfig.simulateAlarms}
@@ -262,7 +274,14 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 DataSimulator.clear();
                 if (this.deviceConfig.simulateTags) {
                     this.deviceConfig.availableTags.forEach(
-                        (value) => { new DataSimulator(value.name, value.type, async (t, v, ts) => { if (this.ready()) { return this.post([{ tagName: t, value: v, timestamp: ts }]);  } return false;  } , value.simulation) }
+                        (value) => { 
+                            new DataSimulator(value.name, value.type, 
+                                async (t, v, ts) => { 
+                                    if (this.ready()) { 
+                                        return this.post([{ tagName: t, value: v, timestamp: ts }]);  
+                                    } 
+                                    return false;  
+                                } , value.simulation) }
                     )
                     this.deviceConfig.availableAlarms.forEach(
                         (value) => { new AlarmSimulator(value, async (data: AlarmData) => { if (this.ready()) { return this.postAlarm(data);  } return false;  } ) }

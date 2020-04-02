@@ -37,14 +37,16 @@ export class PairingAxiosInstance
 
     async getInfo() : Promise<ProtocolData> {
         return this.axiosInstance.get(``).then( (data : AxiosResponse<DataPayload> ) => {
+            // fix broker url if missing
             return data.data.data;
         })
     }
 
     async doPairing(csr: string) : Promise<CrtData> {
-        return this.axiosInstance.post(`/protocols/astarte_mqtt_v1/credentials`, { data: { csr: csr} }).then( (data : AxiosResponse<DataPayload> ) => {
+        let req = this.axiosInstance.post(`/protocols/astarte_mqtt_v1/credentials`, { data: { csr: csr} }).then( (data : AxiosResponse<DataPayload> ) => {
             return data.data.data;
         })
+        return req;
     }
 
     async verify(crt: string) : Promise<boolean> {

@@ -132,7 +132,13 @@ export class BaseSimulator implements AbstractSimulator {
                 //console.log(DataSimulator.simulators.length)
                 //DataSimulator.simulators.forEach((value) => { console.log( value.tag ) })
 
-                BaseSimulator.simulators.forEach((value) => { value.loop() })
+                BaseSimulator.simulators.forEach((value) => { 
+                    try {
+                        value.loop() 
+                    } catch(e) {
+                        console.log("Error in simulation: ", e)
+                    }
+                })
             }, BaseSimulator.simulationMs);
             BaseSimulator.inited = true;
         }
@@ -144,6 +150,7 @@ export class BaseSimulator implements AbstractSimulator {
         let target: BaseSimulator = BaseSimulator.simulatorsByTagName.get(tagName)
         if (target == undefined) {
             console.log(`Cannot resolve dependency ${tagName}`)
+            return
         }
         if (!target.depsOut) {
             target.depsOut = new Map<string, BaseSimulator>();
