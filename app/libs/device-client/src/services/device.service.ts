@@ -1,0 +1,645 @@
+import { castCorvinaType, PacketFormatEnum } from "./../common/types";
+import { State } from "./messagepublisherpolicies";
+import pem from "pem";
+import LicensesAxiosInstance, { LicenseData, CrtData } from "./licensesaxiosinstance";
+import mqtt, { IClientOptions, IClientPublishOptions, MqttClient } from "mqtt";
+import BSON from "bson";
+import _ from "lodash";
+import { DataSimulator, AlarmSimulator, BaseSimulator } from "./simulation";
+import { TagDesc, AlarmDesc, DataPoint, AlarmData, AlarmCommand } from "../common/types";
+
+const assert = require("assert");
+
+import CorvinaDataInterface, { PostCallback } from "./corvinadatainterface";
+import { InternalMessageSenderOptions, MessageSenderOptions } from "./messagesender";
+import { l } from "./logger.service";
+import { MessageSubscriber } from "./messagesubscriber";
+import { EventEmitter } from "stream";
+
+const x509 = require("x509.js");
+
+interface CSRData {
+    csr: string;
+    clientKey: string;
+}
+
+export { PostCallback } from "./corvinadatainterface";
+
+export interface DeviceConfig {
+    activationKey?: string;
+    pairingEndpoint?: string;
+    availableTagsFile?: string; // json array string
+    availableTags?: Map<string, TagDesc>; // json array string
+    dynamicTags?: Map<string, TagDesc>; // dynamic tags generated when posting json data
+    simulateTags?: boolean;
+    availableAlarms?: Map<string, AlarmDesc>; // json array string
+    simulateAlarms?: boolean;
+    packetFormat?: PacketFormatEnum;
+}
+
+export interface DeviceStatus {
+    msgSent: number;
+    bytesSent: number;
+    inited: boolean;
+    connected: boolean;
+    ready: boolean;
+}
+
+/**
+ * @class DeviceService
+ * @summary Implements a Corvina virtual device
+ * @description Implements a Corvina virtual device receiving the configuration from the cloud and providing tag and alarm simulation.
+ */
+
+/**
+ * Manages the device identity and communication with the cloud
+ */
+export class DeviceService extends EventEmitter {
+    protected inited: boolean;
+    protected initPending: Promise<boolean>;
+    protected readyToTransmit: boolean;
+    protected licenseData: LicenseData;
+    protected mqttClient: MqttClient;
+
+    protected msgSentStats = 0;
+    protected byteSentStats = 0;
+    protected lastDateStats: number = Date.now();
+
+    // If there are multiple endpoint options and one fails, this index is incremented to try the next broker url option
+    protected lastTriedBrokerEndpoint = 0;
+
+    protected empyCacheTopic: string;
+    protected introspectionTopic: string;
+    // publish introspection (required interfaces)
+    protected static baseIntrospection =
+        "com.corvina.control.sub.Config:0:2;com.corvina.control.pub.Config:0:2;com.corvina.control.pub.DeviceAlarm:2:0;com.corvina.control.sub.DeviceAlarm:1:0";
+    protected customIntrospections: string;
+    protected applyConfigTopic: string;
+    protected consumerPropertiesTopic: string;
+    protected actionAlarmTopic: string;
+    protected configTopic: string;
+    protected availableTagsTopic: string;
+
+    protected lastConfig: string;
+
+    protected _deviceConfig: DeviceConfig;
+    protected axios: LicensesAxiosInstance;
+    protected dataInterface: CorvinaDataInterface;
+
+    constructor() {
+        super();
+        this._deviceConfig = {};
+        this.dataInterface = new CorvinaDataInterface({
+            sendMessage: this.sendMessage.bind(this),
+        });
+    }
+
+    get status(): DeviceStatus {
+        return {
+            msgSent: this.getMsgSent(),
+            bytesSent: this.getBytesSent(),
+            ready: this.isReady(),
+            connected: this.isConnected(),
+            inited: this.isInited(),
+        };
+    }
+
+    get deviceConfig(): DeviceConfig {
+        return this._deviceConfig;
+    }
+
+    getMsgSent() {
+        return this.msgSentStats;
+    }
+
+    getBytesSent() {
+        return this.byteSentStats;
+    }
+
+    getAppliedConfig(): DeviceConfig {
+        return this.lastConfig as DeviceConfig;
+    }
+
+    getDeviceConfig() {
+        return this._deviceConfig;
+    }
+
+    getLicenseData() {
+        return this.licenseData;
+    }
+
+    public setCycleTime(cycleTime: number) {
+        this.dataInterface.setCycleTime(cycleTime);
+    }
+
+    public reinit(deviceConfig: DeviceConfig, doInit = false): DeviceConfig {
+        this.inited = false;
+        this.readyToTransmit = false;
+        if (this.mqttClient) {
+            this.mqttClient.end();
+            this.mqttClient = null;
+        }
+        DataSimulator.clear();
+        this.initPending = null;
+        this.licenseData = {} as LicenseData;
+        this.customIntrospections = "";
+        this.lastConfig = "";
+        Object.assign(this._deviceConfig, deviceConfig);
+        this._deviceConfig.dynamicTags = new Map<string, TagDesc>();
+        this.axios = new LicensesAxiosInstance(this._deviceConfig.pairingEndpoint, this._deviceConfig.activationKey);
+        this.init();
+        return this._deviceConfig;
+    }
+
+    public isInited() {
+        return this.inited;
+    }
+
+    public isReady() {
+        return this.readyToTransmit;
+    }
+
+    public isConnected() {
+        return this.mqttClient.connected;
+    }
+
+    private setReady(ready: boolean) {
+        if (this.readyToTransmit != ready) {
+            this.readyToTransmit = ready;
+            if (ready) {
+                this.emit("ready", ready);
+            } else {
+                this.emit("not_ready", ready);
+            }
+        }
+    }
+
+    private createCSR(logicalId: string): Promise<CSRData> {
+        return new Promise((resolve, reject) => {
+            pem.createCSR(
+                {
+                    organization: "System",
+                    commonName: `${this.licenseData.logicalId}`,
+                },
+                (err, obj) => {
+                    if (err == null) {
+                        l.debug("PEM RETURNED %s %s", err, obj);
+                        resolve(obj);
+                    } else {
+                        reject(err);
+                    }
+                },
+            );
+        });
+    }
+
+    public async applyConfig(config: any) {
+        if (JSON.stringify(config) == JSON.stringify(this.lastConfig)) {
+            l.info("Found same config => return");
+            return;
+        }
+
+        if (this.initPending) {
+            await this.initPending;
+        }
+
+        this.setReady(false);
+        this.customIntrospections = "";
+        l.debug("Apply config: %s", JSON.stringify(config));
+        this.dataInterface.applyConfig(config);
+        this.dataInterface.config.interfaceNames.forEach((interfaceName) => {
+            this.customIntrospections += `;${interfaceName}`;
+        });
+
+        l.debug("Applied config done!");
+
+        this.lastConfig = config;
+        setTimeout(async () => {
+            await this.mqttClient.end();
+            setTimeout(async () => await this.mqttClient.reconnect(), 1000);
+        }, 0);
+    }
+
+    private serializeMessage(msg: any): any {
+        if (this._deviceConfig.packetFormat == PacketFormatEnum.BSON) {
+            return BSON.serialize({ v: msg.v, t: new Date(msg.t), m: msg.m });
+        } else {
+            return JSON.stringify(msg);
+        }
+    }
+
+    private connectClient(broker_url: string, key: string, crt: string): Promise<any> {
+        return new Promise((resolve, reject) => {
+            const mqttClientOptions: IClientOptions = {};
+            mqttClientOptions.rejectUnauthorized = false;
+            mqttClientOptions.key = key;
+            mqttClientOptions.cert = crt;
+            mqttClientOptions.clean = true;
+            mqttClientOptions.clientId = x509.parseCert(crt).subject.commonName;
+            mqttClientOptions.reconnectPeriod = 5000000;
+            this.mqttClient = mqtt.connect(broker_url, mqttClientOptions);
+
+            this.subscribeChannel(this.consumerPropertiesTopic);
+            this.subscribeChannel(this.applyConfigTopic);
+            this.subscribeChannel(this.actionAlarmTopic);
+
+            this.mqttClient.on("connect", async (v) => {
+                l.info("Successfully connected to mqtt broker!", JSON.stringify(v));
+
+                l.debug("Published introspection " + DeviceService.baseIntrospection + this.customIntrospections);
+                await this.sendStringMessage(
+                    this.introspectionTopic,
+                    DeviceService.baseIntrospection + this.customIntrospections,
+                    { qos: 2 },
+                );
+                // Empty properties cache
+                l.debug("Published empty cache");
+                await this.sendStringMessage(this.empyCacheTopic, "1", {
+                    qos: 2,
+                });
+
+                l.debug("Published configuration");
+                await this.sendStringMessage(
+                    this.configTopic,
+                    this.serializeMessage({
+                        v: JSON.stringify(this.lastConfig),
+                        t: Date.now(),
+                    }),
+                    { qos: 2 },
+                );
+
+                this.throttledUpdateAvailableTags();
+
+                if (this.dataInterface.config) {
+                    this.dataInterface.config.subscribedTopics.forEach((topic, topicName) => {
+                        this.subscribeChannel(this.licenseData.realm + "/" + this.licenseData.logicalId + topicName);
+                    });
+                }
+
+                this.setReady(true);
+                l.info("Ready to transmit!");
+
+                DataSimulator.clear();
+                if (this._deviceConfig.simulateTags) {
+                    this._deviceConfig.availableTags.forEach((value) => {
+                        if (value.simulation === null) {
+                            return;
+                        }
+                        new DataSimulator(
+                            value.name,
+                            value.type,
+                            async (t, v, ts) => {
+                                if (this.isReady()) {
+                                    return this.post([{ tagName: t, value: v, timestamp: ts }]);
+                                }
+                                return false;
+                            },
+                            value.simulation,
+                        );
+                    });
+                    if (this._deviceConfig.simulateAlarms) {
+                        this._deviceConfig.availableAlarms.forEach((value) => {
+                            new AlarmSimulator(value, async (data: AlarmData) => {
+                                if (this.isReady()) {
+                                    return this.postAlarm(data);
+                                }
+                                return false;
+                            });
+                        });
+                    }
+                }
+
+                resolve(true);
+            });
+
+            this.mqttClient.on("close", (v) => {
+                DataSimulator.clear();
+                l.warn("Stream closed! %j", v);
+            });
+
+            this.mqttClient.on("reconnect", (v) => {
+                DataSimulator.clear();
+                l.warn("Stream reconnected! %j", v);
+            });
+
+            this.mqttClient.on("error", (error) => {
+                l.error("Stream error! %j", error);
+                this.lastTriedBrokerEndpoint++;
+                reject(error);
+            });
+
+            this.mqttClient.on("message", (topic, message) => {
+                l.info(`Received message on ${topic} \n`);
+                switch (topic) {
+                    case this.consumerPropertiesTopic.toString():
+                        l.debug("Received consumer properties!");
+                        break;
+                    case this.applyConfigTopic.toString():
+                        this.applyConfig(JSON.parse(BSON.deserialize(message).v));
+                        break;
+                    case this.actionAlarmTopic.toString():
+                        //console.log( JSON.parse(BSON.deserialize(message).v) )
+                        const x: AlarmCommand = BSON.deserialize(message).v;
+                        const sim: AlarmSimulator = BaseSimulator.simulatorsByTagName.get(
+                            AlarmSimulator.alarmSimulatorMapkey(x.name),
+                        ) as AlarmSimulator;
+                        if (!sim) {
+                            l.error("Trying to perform action on unknown alarm %s", x.name);
+                        } else {
+                            switch (x.command) {
+                                case "ack":
+                                    sim.acknoledge(x.evTs, x.user, x.comment);
+                                    break;
+                                case "reset":
+                                    sim.reset(x.evTs, x.user, x.comment);
+                                    break;
+                            }
+                        }
+                        break;
+                    default:
+                        const topicKey = topic.slice(
+                            this.licenseData.logicalId.length + this.licenseData.realm.length + 1,
+                        );
+                        const subscriber = this.dataInterface.config.subscribedTopics.get(topicKey);
+                        if (subscriber) {
+                            this.onWrite(subscriber, BSON.deserialize(message));
+                        } else {
+                            l.info("Nothing to do for topic ", topic);
+                        }
+                }
+            });
+        });
+    }
+
+    private subscribeChannel(channel: string): Promise<any> {
+        return new Promise((resolve, reject) => {
+            this.mqttClient.subscribe(channel, function (err) {
+                if (!err) {
+                    resolve(true);
+                } else {
+                    l.warn(`Error subscribing ${channel}: %j`, err);
+                    reject(err);
+                }
+            });
+        });
+    }
+
+    public async sendStringMessage(channel: string, message: string, options: any = {}): Promise<any> {
+        l.debug("Going to publish %s", channel);
+
+        return new Promise((resolve, reject) => {
+            this.mqttClient.publish(channel, message, options, (err) => {
+                if (!err) {
+                    resolve(true);
+                } else {
+                    l.warn(`Error publishing to ${channel}: %j`, err);
+                    reject(err);
+                }
+            });
+        });
+    }
+
+    public async sendMessage(
+        topic: string,
+        payload: { t: number; v: unknown },
+        options?: InternalMessageSenderOptions,
+    ): Promise<any> {
+        topic = this.licenseData.realm + "/" + this.licenseData.logicalId + topic;
+        const message = this.serializeMessage(payload);
+
+        this.byteSentStats += message.length;
+        this.msgSentStats += 1;
+        const timeDiff = Date.now() - this.lastDateStats;
+        if (timeDiff > 10000) {
+            this.byteSentStats = 0;
+            this.msgSentStats = 0;
+            this.lastDateStats = this.lastDateStats + timeDiff;
+        }
+        l.debug("Going to send to topic %s", topic);
+        try {
+            if (!this.readyToTransmit) {
+                const err = `Cannot publish if not ready to transmit`;
+                l.warn(err);
+                if (options?.cb) {
+                    options.cb(new Error(err), undefined);
+                }
+                throw "Cannot publish if not ready to transmit";
+            }
+            l.debug(">>>> %s %j %d %d %j", topic, payload, topic.length, message.length, message);
+            if (options?.cb) {
+                await this.mqttClient.publish(topic, message, options as IClientPublishOptions, (err, packet) => {
+                    options.cb(err, packet);
+                });
+            } else {
+                await this.mqttClient.publish(topic, message, options as IClientPublishOptions);
+            }
+        } catch (e) {
+            l.error("Got error while publishing: ");
+            l.error(e);
+            return false;
+        }
+    }
+
+    private async _asyncInit(): Promise<boolean> {
+        try {
+            this.licenseData = await this.axios.init();
+            l.debug("Got api key %j ", this.licenseData);
+            this.inited = true;
+
+            /* Below steps should be cached to disk */
+
+            // create identity
+            const csr: CSRData = await this.createCSR(this.licenseData.logicalId);
+
+            // take first protocol available. Todo: ensures is valid
+            //const mqtt_protocol_name = Object.keys(info.protocols)[0]
+            //const mqtt_protocol = info.protocols[mqtt_protocol_name]
+
+            // sign the certificate
+            const crt: CrtData = await this.axios.doPairing(csr.csr);
+
+            // verify the certificate
+            assert(await this.axios.verify(crt.client_crt));
+
+            /* ************************************* */
+
+            this.empyCacheTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/control/emptyCache`;
+            this.introspectionTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}`;
+            this.consumerPropertiesTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/control/consumer/properties`;
+            this.applyConfigTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.sub.Config/applyConfiguration`;
+            this.actionAlarmTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.sub.DeviceAlarm/a`;
+            this.configTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/configuration`;
+            this.availableTagsTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/availableTags`;
+
+            // connect mqtt
+            await this.connectClient(
+                this.licenseData.brokerUrls[this.lastTriedBrokerEndpoint % this.licenseData.brokerUrls.length],
+                csr.clientKey,
+                crt.client_crt,
+            );
+        } catch (err) {
+            this.inited = false;
+            throw err;
+        }
+
+        return this.inited;
+    }
+
+    private async init(): Promise<boolean> {
+        if (this.inited == false && this.initPending == null) {
+            // do the async call
+            this.initPending = this._asyncInit();
+            try {
+                await this.initPending;
+            } catch (err) {
+                l.error("Error initing:");
+                l.error(err);
+                this.initPending = null;
+                const randomRetry = 5 + 10 * Math.random();
+                l.warn(`Retry init in  ${randomRetry} secs`);
+
+                setTimeout(() => {
+                    this.init();
+                }, randomRetry * 1000);
+            }
+            this.initPending = null;
+        }
+        return this.inited;
+    }
+
+    private throttledUpdateAvailableTags = _.throttle(
+        async () => {
+            try {
+                await this.sendStringMessage(
+                    this.availableTagsTopic,
+                    this.serializeMessage({
+                        v: JSON.stringify([
+                            ...this._deviceConfig.availableTags.values(),
+                            ...(this._deviceConfig.dynamicTags ? this._deviceConfig.dynamicTags.values() : []),
+                        ]),
+                        t: Date.now(),
+                    }),
+                    { qos: 2 },
+                );
+            } catch (e) {}
+        },
+        1000,
+        { leading: false, trailing: true },
+    );
+
+    private jsToCorvinaType(value): string {
+        switch (typeof value) {
+            case "number":
+                return "double";
+            case "string":
+                return "string";
+            case "object":
+                if (_.isArray(value)) {
+                    if (value.length > 0 && typeof value[0] === "string") {
+                        return "stringarray";
+                    }
+                    return "doublearray";
+                } else {
+                    return "struct";
+                }
+                break;
+            default:
+                return undefined;
+        }
+    }
+
+    private recurseNotifyObject = (
+        prefix: string,
+        rootValue: Record<string, any>,
+        ts: number,
+        options?: MessageSenderOptions,
+    ) => {
+        _.mapKeys(rootValue, (value, key) => {
+            const decoratedName = `${prefix}${key}`;
+            if (_.isArray(value) && value.length > 0 && !_.isObject(value[0])) {
+                for (const e in value as Array<any>) {
+                    this.recurseNotifyObject(`${decoratedName}[${e}]`, value[e], ts, options);
+                }
+            } else if (_.isObject(value)) {
+                this.recurseNotifyObject(decoratedName + ".", value, ts, options);
+            }
+            if (
+                this._deviceConfig.dynamicTags &&
+                !this._deviceConfig.dynamicTags.has(decoratedName) &&
+                !this._deviceConfig.availableTags.has(decoratedName) &&
+                value != undefined
+            ) {
+                this._deviceConfig.dynamicTags.set(decoratedName, {
+                    name: decoratedName,
+                    type: this.jsToCorvinaType(value), // better implement type detection
+                } as TagDesc);
+                this.throttledUpdateAvailableTags();
+            }
+            this.dataInterface.notifyTag(decoratedName, new State(value, ts), options);
+        });
+        if (prefix.length > 0) {
+            this.dataInterface.notifyTag(prefix.slice(0, -1), new State(rootValue, ts), options);
+        }
+    };
+
+    /**
+     *
+     * @param dataPoints
+     * @returns
+     */
+    async post(dataPoints: Array<DataPoint>, options?: MessageSenderOptions): Promise<boolean> {
+        if (!this.readyToTransmit) {
+            const err = `Cannot process ${JSON.stringify(dataPoints)}. Device not ready to transmit!`;
+            if (options?.cb) {
+                options.cb(new Error(err), undefined, undefined);
+            }
+            l.info(err);
+            return false;
+        }
+        if (!this.dataInterface.config) {
+            const err = `Cannot process ${JSON.stringify(dataPoints)}. Device is not configured yet!`;
+            l.info(err);
+            if (options?.cb) {
+                options.cb(new Error(err), undefined, undefined);
+            }
+            return false;
+        }
+        for (const dp of dataPoints) {
+            if (dp.tagName == undefined) {
+                assert(_.isObject(dp.value));
+                this.recurseNotifyObject("", dp.value, dp.timestamp, options);
+            } else {
+                // else notify single components
+                if (_.isObject(dp.value) && !options?.recurseNotifyOnlyWholeObject) {
+                    this.recurseNotifyObject(dp.tagName + ".", dp.value, dp.timestamp, options);
+                } else {
+                    // try to notify whole object
+                    this.dataInterface.notifyTag(dp.tagName as string, new State(dp.value, dp.timestamp), options);
+                }
+            }
+        }
+
+        return true;
+    }
+
+    async postAlarm(alarmData: AlarmData): Promise<boolean> {
+        const payload = this.serializeMessage({ t: Date.now(), v: alarmData });
+        l.debug("Going to send alarm  %j", { t: Date.now(), v: alarmData } /*, payload */);
+        await this.mqttClient.publish(
+            `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.DeviceAlarm/a`,
+            payload,
+            { qos: 2 },
+        );
+        return true;
+    }
+
+    protected onWrite(subscriber: MessageSubscriber, message: any) {
+        l.debug("CorvinaDataInterface.onWrite %j", message);
+        this.emit("write", {
+            topic: subscriber.topic,
+            modelPath: subscriber.modelPath,
+            fieldName: subscriber.fieldName,
+            v: castCorvinaType(message.v, subscriber.topicType),
+        });
+    }
+}
