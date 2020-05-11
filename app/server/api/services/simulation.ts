@@ -446,7 +446,7 @@ export class AlarmSimulator extends BaseSimulator
         this.callback = callback;
 
         this.alarmData = {
-            severity: this.alarm.severity,
+            sev: this.alarm.severity,
             tag: this.alarm.source,
             name: this.alarm.name,
             state: this.alarm.enabled ? AlarmState.ALARM_ENABLED : AlarmState.ALARM_NONE
@@ -531,13 +531,13 @@ export class AlarmSimulator extends BaseSimulator
             let tagValue = BaseSimulator.$(this, this.alarm.source)
             switch (typeof tagValue) {
                 case 'number':
-                    this.alarmData.value_double = tagValue;
+                    this.alarmData.v_d = tagValue;
                     break;
                 case 'string':
-                    this.alarmData.value_string = tagValue;
+                    this.alarmData.v_s = tagValue;
                     break;
                 case 'boolean':
-                    this.alarmData.value_boolean = tagValue;
+                    this.alarmData.v_b = tagValue;
                     break;
             }
 
@@ -546,11 +546,11 @@ export class AlarmSimulator extends BaseSimulator
                     this.tagRefs[r] = BaseSimulator.$(this, r)
                 }
                 console.log(this.tagRefs)
-                this.alarmData.description = Mustache.render(
+                this.alarmData.desc = Mustache.render(
                     this.alarm.desc["en"], this.tagRefs, {}, ["[", "]"])
 
             }
-            this.alarmData.timestamp = new Date();
+            this.alarmData.ts = new Date();
 
             if (await this.callback(this.alarmData)) {
                 console.log("UPDATED ALARM VALUE ", this.lastSentValue, this.value, this.alarmData)
@@ -596,7 +596,7 @@ export class AlarmSimulator extends BaseSimulator
 
             if (this.alarmData.state & AlarmState.ALARM_ACTIVE && !(this.alarmData.state & (AlarmState.ALARM_REQUIRES_ACK | AlarmState.ALARM_REQUIRES_RESET) )) {
                 // set a new event timestamp
-                this.alarmData.eventTimestamp = new Date();
+                this.alarmData.evTs = new Date();
             }
 
             if (this.alarm.ack_required && this.value) {

@@ -51,7 +51,7 @@ export class DeviceService {
     private empyCacheTopic: string;
     private introspectionTopic: string;
     // publish introspection (required interfaces)
-    private static baseIntrospection: string = "com.corvina.control.sub.Config:0:2;com.corvina.control.pub.Config:0:2;com.corvina.control.pub.DeviceAlarm:1:0;com.corvina.control.sub.DeviceAlarm:1:0";
+    private static baseIntrospection: string = "com.corvina.control.sub.Config:0:2;com.corvina.control.pub.Config:0:2;com.corvina.control.pub.DeviceAlarm:2:0;com.corvina.control.sub.DeviceAlarm:1:0";
     private customIntrospections: string;
     private applyConfigTopic: string;
     private configTopic: string;
@@ -201,14 +201,14 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             let nodeProperties: Array<any> = []
             Object.keys(config.properties[n].properties).forEach((k) => { nodeProperties.push(config.properties[n].properties[k]); })
             for (let prop of nodeProperties) {
-                const dl = prop.datalink;
+                const dl = prop.datalink;   
                 const map = prop.mapping;
                 if (dl && map) {
                     this.tagToTopicMap.set(dl.source, `${this.licenseData.realm}/${this.licenseData.logicalId}${map.device_endpoint}`);
                 }
                 // if (prop.type == "object") {
                 //     nodeProperties = nodeProperties.concat( Object.keys(prop.properties).forEach( (k) => { nodeProperties.push( prop.properties[k] ); } ) )
-                // } else if (prop.type == 'array') {
+                // } else if (prop.type == 'array') {   
                 //     nodeProperties = nodeProperties.concat( prop.item )
                 // }
                 if (prop.type == "object") {
@@ -313,6 +313,9 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                     case this.applyConfigTopic.toString():
                         this.applyConfig(JSON.parse(BSON.deserialize(message).v))
                         break;
+                    case this.ackAlarmTopic.toString():
+                        console.log("received ack on alarm topic")
+                        break;
                     // TODO: ACK/RESET
                 }
             })
@@ -391,6 +394,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             this.empyCacheTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/control/emptyCache`;
             this.introspectionTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}`;
             this.applyConfigTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.sub.Config/applyConfiguration`;
+            this.ackAlarmTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.sub.Alarm/a`;
             this.configTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/configuration`;
             this.availableTagsTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/availableTags`;
 
@@ -462,9 +466,9 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
     }
 
     async postAlarm(alarmData: AlarmData): Promise<boolean> {
-        const payload = this.serializeMessage(alarmData)
-        console.log("GOING TO SEND ALARM", /* this.tagToTopicMap, */ payload)
-        await this.mqttClient.publish(`${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.DeviceAlarm/`, payload)
+        const payload = this.serializeMessage({ t: Date.now(), v: alarmData} )
+        console.log("GOING TO SEND ALARM", { t: Date.now(), v: alarmData}, /* this.tagToTopicMap, */ payload)
+        await this.mqttClient.publish(`${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.DeviceAlarm/a`, payload)
         return true
     }
 }

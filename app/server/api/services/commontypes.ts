@@ -80,16 +80,16 @@ export enum AlarmState {
 
 export interface AlarmData {
     name: string,
-    description: string,
-    timestamp: Date,
-    eventTimestamp: Date,
-    severity?: BSON.Int32,
+    desc: string,
+    ts: Date,
+    evTs: Date,
+    sev?: BSON.Int32,
     state: number,
     tag?: string,
-    value_double?: number,
-    value_integer?: BSON.Int32,
-    value_boolean?: boolean,
-    value_string?: string,
-    value_longinteger?: BSON.Long,
-    value_binaryblob?: BSON.Binary
+    v_d?: number,
+    v_i?: BSON.Int32,
+    v_b?: boolean,
+    v_s?: string,
+    v_l?: BSON.Long,
+    v_o?: BSON.Binary
 }
