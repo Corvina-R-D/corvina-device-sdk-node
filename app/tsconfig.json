@@ -1,14 +1,18 @@
 {
-  "compileOnSave": false,
   "compilerOptions": {
-    "target": "es6",
     "module": "commonjs",
-    "esModuleInterop": true,
-    "sourceMap": true,
     "moduleResolution": "node",
-    "outDir": "dist",
-    "typeRoots": ["node_modules/@types"]
-  },
-  "include": ["typings.d.ts", "server/**/*.ts"],
-  "exclude": ["node_modules"]
+    "declaration": true,
+    "declarationMap": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "esnext",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "skipLibCheck": true,
+    "esModuleInterop": true
+  }
 }
