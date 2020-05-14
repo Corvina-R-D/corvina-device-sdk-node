@@ -93,3 +93,11 @@ export interface AlarmData {
     v_l?: BSON.Long,
     v_o?: BSON.Binary
 }
+
+export interface AlarmCommand {
+    command: string,
+    comment: string,
+    evTs: number,
+    name: string,
+    user: string
+}

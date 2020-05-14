@@ -15,8 +15,8 @@ interface CSRData {
     clientKey: string;
 }
 
-import { DataSimulator, AlarmSimulator } from './simulation'
-import { TagDesc, MultiLangString, SimulationDesc, AlarmDesc, DataPoint, AlarmState, AlarmData} from './commontypes'
+import { DataSimulator, AlarmSimulator, BaseSimulator } from './simulation'
+import { TagDesc, MultiLangString, SimulationDesc, AlarmDesc, DataPoint, AlarmState, AlarmData, AlarmCommand} from './commontypes'
 
 enum PacketFormatEnum {
     JSON = "json",
@@ -54,6 +54,7 @@ export class DeviceService {
     private static baseIntrospection: string = "com.corvina.control.sub.Config:0:2;com.corvina.control.pub.Config:0:2;com.corvina.control.pub.DeviceAlarm:2:0;com.corvina.control.sub.DeviceAlarm:1:0";
     private customIntrospections: string;
     private applyConfigTopic: string;
+    private actionAlarmTopic: string;
     private configTopic: string;
     private availableTagsTopic: string;
 
@@ -251,6 +252,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             this.mqttClient = mqtt.connect(broker_url, mqttClientOptions)
 
             this.subscribeChannel(this.applyConfigTopic);
+            this.subscribeChannel(this.actionAlarmTopic);
 
             this.mqttClient.on('connect', async (v) => {
                 console.log("Successfully connected to mqtt brokern!", v)
@@ -313,10 +315,25 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                     case this.applyConfigTopic.toString():
                         this.applyConfig(JSON.parse(BSON.deserialize(message).v))
                         break;
-                    case this.ackAlarmTopic.toString():
-                        console.log("received ack on alarm topic")
-                        break;
-                    // TODO: ACK/RESET
+                    case this.actionAlarmTopic.toString():
+                        //console.log( JSON.parse(BSON.deserialize(message).v) )
+                        let x : AlarmCommand = BSON.deserialize(message).v;
+                        let sim : AlarmSimulator = BaseSimulator.simulatorsByTagName.get(AlarmSimulator.alarmSimulatorMapkey(x.name)) as AlarmSimulator
+                        if (!sim) {
+                            console.error("Trying to perform action on unknown alarm ", x.name)
+                        } else {
+                            switch (x.command ) {
+                                case "ack":
+                                    sim.acknoledge(x.evTs, x.user, x.comment)
+                                    break;
+                                case "reset":
+                                    sim.reset(x.evTs, x.user, x.comment)
+                                    break;
+                            } 
+                        }
+                        break;  
+                    default:
+                        console.trace("UNKNOWN TOPIC ", topic)
                 }
             })
 
@@ -394,7 +411,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             this.empyCacheTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/control/emptyCache`;
             this.introspectionTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}`;
             this.applyConfigTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.sub.Config/applyConfiguration`;
-            this.ackAlarmTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.sub.Alarm/a`;
+            this.actionAlarmTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.sub.DeviceAlarm/a`;
             this.configTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/configuration`;
             this.availableTagsTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/availableTags`;
 

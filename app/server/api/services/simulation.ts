@@ -64,8 +64,6 @@ export class BaseSimulator implements AbstractSimulator {
 
     protected tag;
 
-    
-
     /*! dependees: exiting dependency edges in dep graph */
     public depsOut: Map<string, BaseSimulator>;
 
@@ -437,6 +435,8 @@ export class AlarmSimulator extends BaseSimulator
     private alarmData: AlarmData;
     private tagRefs : any;
 
+    static alarmSimulatorMapkey(alarmName: string) { return `Alarm.${alarmName}`;}
+
     constructor(alarm: AlarmDesc, callback: (AlarmData) => Promise<boolean>) {
         super (alarm.source)
         
@@ -462,7 +462,7 @@ export class AlarmSimulator extends BaseSimulator
             }
         }
 
-        BaseSimulator.simulatorsByTagName.set(`${alarm.name}.${this.alarm.source}`, this);
+        BaseSimulator.simulatorsByTagName.set(AlarmSimulator.alarmSimulatorMapkey(alarm.name), this);
     }
 
     // Case ack required and reset required
@@ -499,21 +499,62 @@ export class AlarmSimulator extends BaseSimulator
 
 
 
-    acknoledge() {
-        if ( this.alarmData.state & AlarmState.ALARM_REQUIRES_ACK ) {
-            this.alarmData.state &= ~AlarmState.ALARM_REQUIRES_ACK
-            this.alarmData.state |= AlarmState.ALARM_ACKED
-            if (this.alarm.reset_required) {
-                this.alarmData.state |= AlarmState.ALARM_REQUIRES_RESET
+    acknoledge(evTs: number, user: string, comment: string) {
+        if (evTs != this.alarmData.evTs.valueOf()) {
+            console.warn(`Trying to reset alarm ${this.alarmData.name}:${evTs} but current active event timestamp is ${this.alarmData.evTs}`);
+            // propagate a fake sync (assuming the alarm event is not closed)
+            let fakeAck: AlarmData = {
+                name: this.alarmData.name,
+                desc: this.alarmData.desc,
+                ts: new Date(),
+                evTs: new Date(evTs),
+                sev: this.alarmData.sev,
+                tag: this.alarmData.tag,
+                state: AlarmState.ALARM_ENABLED
+            };
+            this.callback(fakeAck)
+        } else {
+            if (this.alarmData.state & AlarmState.ALARM_REQUIRES_ACK) {
+                this.alarmData.state &= ~AlarmState.ALARM_REQUIRES_ACK
+                this.alarmData.state |= AlarmState.ALARM_ACKED
+                if (this.alarm.reset_required) {
+                    this.alarmData.state |= AlarmState.ALARM_REQUIRES_RESET
+                }
+                console.log(`Alarm ${this.alarmData.name} acknowledged by ${user} : ${comment}`)
+
+                this.propagate();
+            } else {
+                console.warn(`Alarm ${this.alarmData.name} does not require ack`)
             }
-            this.propagate();
         }
     }
 
-    reset() {
-        if ( (this.alarmData.state & AlarmState.ALARM_REQUIRES_RESET) && !(this.alarmData.state & AlarmState.ALARM_ACTIVE) ) {
-            this.alarmData.state &= ~( AlarmState.ALARM_ACKED | AlarmState.ALARM_REQUIRES_RESET );
-            this.propagate();
+    reset(evTs: number, user: string, comment: string) {
+        if (evTs != this.alarmData.evTs.valueOf()) {
+            console.warn(`Trying to reset alarm ${this.alarmData.name}:${evTs} but current active event timestamp is ${this.alarmData.evTs}`);
+            // propagate a fake sync (assuming the alarm event is not closed)
+            let fakeReset : AlarmData = {
+                name: this.alarmData.name,
+                desc: this.alarmData.desc,
+                ts: new Date(),
+                evTs: new Date(evTs),
+                sev: this.alarmData.sev,
+                tag: this.alarmData.tag,
+                state: AlarmState.ALARM_ENABLED
+            };
+            this.callback(fakeReset)
+        } else {
+            if ((this.alarmData.state & AlarmState.ALARM_REQUIRES_RESET)) {
+                if (!(this.alarmData.state & AlarmState.ALARM_ACTIVE)) {
+                    this.alarmData.state &= ~(AlarmState.ALARM_ACKED | AlarmState.ALARM_REQUIRES_RESET);
+                    console.log(`Alarm ${this.alarmData.name} reset by ${user} : ${comment}`)
+                    this.propagate();
+                } else {
+                    console.warn(`Cannot reset active alarm ${this.alarmData.name}`)
+                }
+            } else {
+                console.warn(`Alarm ${this.alarmData.name} does not require reset`)
+            }
         }
     }
 
@@ -599,7 +640,7 @@ export class AlarmSimulator extends BaseSimulator
                 this.alarmData.evTs = new Date();
             }
 
-            if (this.alarm.ack_required && this.value) {
+            if (this.alarm.ack_required && this.value && !(this.alarmData.state & AlarmState.ALARM_ACKED)) {
                 this.alarmData.state |= AlarmState.ALARM_REQUIRES_ACK;
             }
 
