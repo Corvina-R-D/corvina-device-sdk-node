@@ -30,7 +30,8 @@
     "mustache": "^3.1.0",
     "pem": "^1.13.2",
     "pino": "^5.8.1",
-    "swagger-express-middleware": "^1.1.1"
+    "swagger-express-middleware": "^1.1.1",
+    "x509.js": "^1.0.0"
   },
   "devDependencies": {
     "@types/bluebird": "^3.5.24",

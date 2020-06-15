@@ -10,6 +10,8 @@ import URL from 'url';
 import fs, { readSync } from 'fs'
 import path from 'path'
 
+var x509 = require('x509.js');
+
 interface CSRData {
     csr: string;
     clientKey: string;
@@ -54,6 +56,7 @@ export class DeviceService {
     private static baseIntrospection: string = "com.corvina.control.sub.Config:0:2;com.corvina.control.pub.Config:0:2;com.corvina.control.pub.DeviceAlarm:2:0;com.corvina.control.sub.DeviceAlarm:1:0";
     private customIntrospections: string;
     private applyConfigTopic: string;
+    private consumerPropertiesTopic: string;
     private actionAlarmTopic: string;
     private configTopic: string;
     private availableTagsTopic: string;
@@ -245,12 +248,15 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
 
     private connectClient(broker_url: string, key: string, crt: string): Promise<any> {
         return new Promise((resolve, reject) => {
-            let mqttClientOptions: ISecureClientOptions = {}
+            let mqttClientOptions: IClientOptions = {}
             mqttClientOptions.rejectUnauthorized = false;
             mqttClientOptions.key = key;
             mqttClientOptions.cert = crt;
+            mqttClientOptions.clean = true;
+            mqttClientOptions.clientId = x509.parseCert(crt).subject.commonName ;
             this.mqttClient = mqtt.connect(broker_url, mqttClientOptions)
 
+            this.subscribeChannel(this.consumerPropertiesTopic);
             this.subscribeChannel(this.applyConfigTopic);
             this.subscribeChannel(this.actionAlarmTopic);
 
@@ -312,6 +318,9 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             this.mqttClient.on('message', (topic, message) => {
                 console.log(`\nReceived message on ${topic} \n`)
                 switch (topic) {
+                    case this.consumerPropertiesTopic.toString():
+                        console.log( "Received consumer properties!" )
+                        break;
                     case this.applyConfigTopic.toString():
                         this.applyConfig(JSON.parse(BSON.deserialize(message).v))
                         break;
@@ -410,6 +419,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
 
             this.empyCacheTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/control/emptyCache`;
             this.introspectionTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}`;
+            this.consumerPropertiesTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/control/consumer/properties`;
             this.applyConfigTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.sub.Config/applyConfiguration`;
             this.actionAlarmTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.sub.DeviceAlarm/a`;
             this.configTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/configuration`;
