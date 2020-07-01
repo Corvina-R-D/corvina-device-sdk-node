@@ -649,7 +649,7 @@ export class AlarmSimulator extends BaseSimulator
                 this.alarmData.state &= ~AlarmState.ALARM_REQUIRES_ACK;
             }
 
-            if (this.alarm.enabled) {
+            if (this.alarm.enabled && this.alarmData.evTs) {
                 await this.propagate();
             }
             this.lastSentValue = this.value;

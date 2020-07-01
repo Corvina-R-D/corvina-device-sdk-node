@@ -252,7 +252,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             mqttClientOptions.rejectUnauthorized = false;
             mqttClientOptions.key = key;
             mqttClientOptions.cert = crt;
-            mqttClientOptions.clean = true;
+            mqttClientOptions.clean = false;
             mqttClientOptions.clientId = x509.parseCert(crt).subject.commonName ;
             this.mqttClient = mqtt.connect(broker_url, mqttClientOptions)
 
