@@ -237,7 +237,9 @@ export class DataSimulator extends BaseSimulator {
             }
             if (props.nullable.state.nullifying == true) {
                 if (typeof v == 'number') {
-                    return  0
+                    return  0;
+                } else if (typeof v == 'boolean') {
+                    return false;
                 } else {
                     return ""
                 }
@@ -255,12 +257,17 @@ export class DataSimulator extends BaseSimulator {
                 case 'integer':
                     this.value = (Math.random() * this.defAmplitude) | 0;
                     break;
+                case 'boolean':
+                    this.value = Math.random() > this.defPeriod;
+                    break;
                 case 'double':
                     this.value = this.defAmplitude * Math.sin(this.defPhase + ts * 2 * Math.PI / this.defPeriod)
                     break;
                 case 'string':
                     this.value = Math.random().toString();
                     break;
+                default:
+                    throw "Unsupported type " + this.type
             }
         } else {
             switch (this.desc.type) {
@@ -285,12 +292,18 @@ export class DataSimulator extends BaseSimulator {
                             case 'integer':
                                 this.value = ~~noised;
                                 break;
+                            case 'boolean':
+                                this.value = ( ~~noised ) > this.defPeriod ;
+                                break;
                             case 'double':
                                 this.value = noised;
                                 break;
                             case 'string':
                                 this.value = (typeof noised == 'string' || ((noised as any) instanceof String )) ? noised : JSON.stringify(noised);
                                 break;
+                            default:
+                                throw "Unsupported type " + this.type
+                
                         }
                         this.value = this.nullify(this.value)
                     }
@@ -303,12 +316,17 @@ export class DataSimulator extends BaseSimulator {
                             case 'integer':
                                 this.value = ~~noised;
                                 break;
+                            case 'boolean':
+                                this.value = ( ~~noised ) > this.defPeriod ;
+                                break;
                             case 'double':
                                 this.value = noised;
                                 break;
                             case 'string':
                                 this.value = (typeof noised == 'string' || ((noised as any) instanceof String )) ? noised : JSON.stringify(noised);
                                 break;
+                            default:
+                                throw "Unsupported type " + this.type
                         }
                         this.value = this.nullify(this.value)
                     }
@@ -322,12 +340,17 @@ export class DataSimulator extends BaseSimulator {
                                 this.value = ~~v;
                                 this.value = this.nullify(this.value)
                                 break;
+                            case 'boolean':
+                                this.value = Math.random() > this.defPeriod;
+                                break;         
                             case 'double':
                                 this.value = v;
                                 break;
                             case 'string':
                                 this.value = (typeof v == 'string' || ((v as any) instanceof String )) ? v : JSON.stringify(v);
                                 break;
+                            default:
+                                throw "Unsupported type " + this.type
                         }
                         this.value = this.nullify(this.value)
                     }
@@ -390,12 +413,17 @@ export class DataSimulator extends BaseSimulator {
                             case 'integer':
                                 this.value = ~~noised;
                                 break;
+                            case 'boolean':
+                                this.value = (~~noised) > this.defPeriod;
+                                break;
                             case 'double':
                                 this.value = noised;
                                 break;
                             case 'string':
                                 this.value = (typeof noised == 'string' || ((noised as any) instanceof String ))  ? noised : JSON.stringify(noised);
                                 break;
+                            default:
+                                throw "Unsupported type " + this.type
                         }
 
                         this.nullify(this.value, (o: boolean, n: boolean) => {
@@ -580,6 +608,9 @@ export class AlarmSimulator extends BaseSimulator
                 case 'boolean':
                     this.alarmData.v_b = tagValue;
                     break;
+                default:
+                    throw "Unsupported type " + (typeof tagValue)
+    
             }
 
             if (this.tagRefs) {

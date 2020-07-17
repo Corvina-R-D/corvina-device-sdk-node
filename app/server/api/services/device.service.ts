@@ -63,7 +63,7 @@ export class DeviceService {
 
     private lastConfig: string;
 
-    private tagToTopicMap: Map<string, string>;
+    private tagToTopicMap: Map<string, [ string, string ] >;
 
     private deviceConfig: DeviceConfig;
     private axios: LicensesAxiosInstance;
@@ -189,7 +189,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
         }
         this.readyToTransmit = false;
 
-        this.tagToTopicMap = new Map<string, string>();
+        this.tagToTopicMap = new Map<string, [ string, string ]>();
         this.customIntrospections = ""
         console.log("APPLY CONFIG: ", JSON.stringify(config))
 
@@ -208,7 +208,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 const dl = prop.datalink;   
                 const map = prop.mapping;
                 if (dl && map) {
-                    this.tagToTopicMap.set(dl.source, `${this.licenseData.realm}/${this.licenseData.logicalId}${map.device_endpoint}`);
+                    this.tagToTopicMap.set(dl.source, [ `${this.licenseData.realm}/${this.licenseData.logicalId}${map.device_endpoint}`, prop.type ]);
                 }
                 // if (prop.type == "object") {
                 //     nodeProperties = nodeProperties.concat( Object.keys(prop.properties).forEach( (k) => { nodeProperties.push( prop.properties[k] ); } ) )
@@ -467,10 +467,29 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
         }
         for (let dp of dataPoints) {
             const topic = this.tagToTopicMap.get(dp.tagName)
-            if (!topic) {
+            if (!topic[0]) {
                 console.error(`Unknown topic for tag ${dp.tagName}`);
                 return false;
             } else {
+                // cast to cloud types, ensuring the data in not rejected
+                switch (topic[1]) {
+                    case 'integer':
+                        dp.value = ~~dp.value;
+                        break;
+                    case 'boolean':
+                        dp.value = !!dp.value;
+                        break;
+                    case 'string':
+                        dp.value = "" + dp.value
+                        break;
+                    case 'double':
+                        dp.value = parseFloat(dp.value)
+                        break;
+                    default:
+                        throw 'Unsupported data type ' + topic[1]
+                        break;
+                }
+
                 const payload = this.serializeMessage({ v: dp.value, t: Date.now() })
                 this.byteSentStats += payload.length
                 this.msgSentStats += 1
@@ -481,9 +500,9 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                     this.msgSentStats = 0
                     this.lastDateStats = this.lastDateStats + timeDiff;
                 }
-                console.log("GOING TO SEND TO TOPIC", /* this.tagToTopicMap, */ topic, payload)
+                console.log("GOING TO SEND TO TOPIC", /* this.tagToTopicMap, */ topic[0], payload)
                 try { 
-                    await this.mqttClient.publish(topic, payload)
+                    await this.mqttClient.publish(topic[0], payload)
                 } catch(e) {
                     return false;
                 }
