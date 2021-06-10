@@ -1,6 +1,4 @@
-import { version } from "bluebird";
-import { stringify } from "querystring";
-import { promises } from "fs";
+import l from '../../common/logger'
 import Mustache from "mustache"
 
 import { AlarmDesc, AlarmState, AlarmData, MultiLangString, SimulationDesc, SimulationType, NoiseSimulationType } from './commontypes'
@@ -92,7 +90,6 @@ export class BaseSimulator implements AbstractSimulator {
 
         if (!BaseSimulator.inited) {
             setInterval(() => {
-                console.log('')
                 if (!BaseSimulator.inited || !BaseSimulator.sorted) {
                     let idx = BaseSimulator.simulatorsByTagName.size;
                     BaseSimulator.simulators = new Array(idx)
@@ -127,14 +124,11 @@ export class BaseSimulator implements AbstractSimulator {
                     BaseSimulator.sorted = true;
                 }
 
-                //console.log(DataSimulator.simulators.length)
-                //DataSimulator.simulators.forEach((value) => { console.log( value.tag ) })
-
                 BaseSimulator.simulators.forEach((value) => { 
                     try {
                         value.loop() 
                     } catch(e) {
-                        console.log("Error in simulation: ", e)
+                        l.error("Error in simulation: ", e)
                     }
                 })
             }, BaseSimulator.simulationMs);
@@ -147,7 +141,7 @@ export class BaseSimulator implements AbstractSimulator {
     static $ = (source: BaseSimulator, tagName: string) => {
         let target: BaseSimulator = BaseSimulator.simulatorsByTagName.get(tagName)
         if (target == undefined) {
-            console.log(`Cannot resolve dependency ${tagName}`)
+            l.error(`Cannot resolve dependency ${tagName}`)
             return
         }
         if (!target.depsOut) {
@@ -155,7 +149,7 @@ export class BaseSimulator implements AbstractSimulator {
         }
 
         if (!target.depsOut.has(source.tag)) {
-            console.log(`TRACKED DEPENDENCY FROM ${source.tag} TO ${target.tag}`)
+            l.debug(`Tracked dependency from ${source.tag} to ${target.tag}`)
             target.depsOut.set(source.tag, source)
             BaseSimulator.sorted = false
         }
@@ -249,7 +243,6 @@ export class DataSimulator extends BaseSimulator {
     }
 
     async loop() {
-        //console.log("loop!!!")
         const ts = Date.now()
         this.value = null;
         if (!this.desc) {
@@ -280,8 +273,7 @@ export class DataSimulator extends BaseSimulator {
                             }
                             this.value = props._f.call(this, (t) => { return BaseSimulator.$(this, t) })
                         } catch(e) {
-                            console.log()
-                            console.log("Error evaluating", e)
+                            l.error("Error evaluating", e)
                         }
                         if (this.value == null || this.value == undefined) {
                             return
@@ -529,7 +521,7 @@ export class AlarmSimulator extends BaseSimulator
 
     acknoledge(evTs: number, user: string, comment: string) {
         if (evTs != this.alarmData.evTs.valueOf()) {
-            console.warn(`Trying to reset alarm ${this.alarmData.name}:${evTs} but current active event timestamp is ${this.alarmData.evTs}`);
+            l.warn(`Trying to reset alarm ${this.alarmData.name}:${evTs} but current active event timestamp is ${this.alarmData.evTs}`);
             // propagate a fake sync (assuming the alarm event is not closed)
             let fakeAck: AlarmData = {
                 name: this.alarmData.name,
@@ -548,18 +540,18 @@ export class AlarmSimulator extends BaseSimulator
                 if (this.alarm.reset_required) {
                     this.alarmData.state |= AlarmState.ALARM_REQUIRES_RESET
                 }
-                console.log(`Alarm ${this.alarmData.name} acknowledged by ${user} : ${comment}`)
+                l.info(`Alarm ${this.alarmData.name} acknowledged by ${user} : ${comment}`)
 
                 this.propagate();
             } else {
-                console.warn(`Alarm ${this.alarmData.name} does not require ack`)
+                l.warn(`Alarm ${this.alarmData.name} does not require ack`)
             }
         }
     }
 
     reset(evTs: number, user: string, comment: string) {
         if (evTs != this.alarmData.evTs.valueOf()) {
-            console.warn(`Trying to reset alarm ${this.alarmData.name}:${evTs} but current active event timestamp is ${this.alarmData.evTs}`);
+            l.warn(`Trying to reset alarm ${this.alarmData.name}:${evTs} but current active event timestamp is ${this.alarmData.evTs}`);
             // propagate a fake sync (assuming the alarm event is not closed)
             let fakeReset : AlarmData = {
                 name: this.alarmData.name,
@@ -575,13 +567,13 @@ export class AlarmSimulator extends BaseSimulator
             if ((this.alarmData.state & AlarmState.ALARM_REQUIRES_RESET)) {
                 if (!(this.alarmData.state & AlarmState.ALARM_ACTIVE)) {
                     this.alarmData.state &= ~(AlarmState.ALARM_ACKED | AlarmState.ALARM_REQUIRES_RESET);
-                    console.log(`Alarm ${this.alarmData.name} reset by ${user} : ${comment}`)
+                    l.info(`Alarm ${this.alarmData.name} reset by ${user} : ${comment}`)
                     this.propagate();
                 } else {
-                    console.warn(`Cannot reset active alarm ${this.alarmData.name}`)
+                    l.warn(`Cannot reset active alarm ${this.alarmData.name}`)
                 }
             } else {
-                console.warn(`Alarm ${this.alarmData.name} does not require reset`)
+                l.warn(`Alarm ${this.alarmData.name} does not require reset`)
             }
         }
     }
@@ -617,7 +609,6 @@ export class AlarmSimulator extends BaseSimulator
                 for (let r in this.tagRefs) {
                     this.tagRefs[r] = BaseSimulator.$(this, r)
                 }
-                console.log(this.tagRefs)
                 this.alarmData.desc = Mustache.render(
                     this.alarm.desc["en"], this.tagRefs, {}, ["[", "]"])
 
@@ -625,10 +616,10 @@ export class AlarmSimulator extends BaseSimulator
             this.alarmData.ts = new Date();
 
             if (await this.callback(this.alarmData)) {
-                console.log("UPDATED ALARM VALUE ", this.lastSentValue, this.value, this.alarmData)
+                l.debug("Updated alarm value ", this.lastSentValue, this.value, this.alarmData)
             }
         } catch (e) {
-            console.error(e)
+            l.error(e)
         }
 
     }
@@ -650,7 +641,7 @@ export class AlarmSimulator extends BaseSimulator
                 // call _f passing the function to resolve simulator by tag name as $, and $src the reference to tag source
                 this.value = props._f.call(this, (t) => { return BaseSimulator.$(this, t), BaseSimulator.$(this,this.alarm.source) })
             } catch (e) {
-                console.log("Error evaluating", e)
+                l.error("Error evaluating", e)
             }
             if (this.value == null || this.value == undefined) {
                 return

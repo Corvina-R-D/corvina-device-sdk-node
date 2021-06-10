@@ -1,3 +1,4 @@
+import l from '../../../common/logger'
 import DeviceService, { DeviceConfig } from '../../services/device.service';
 import { DataPoint } from '../../services/commontypes';
 import { Request, Response } from 'express';
@@ -14,7 +15,7 @@ export class Controller {
      */
     post(req: Request, res: Response, next): void {
         const newConfig = req.body.config as DeviceConfig;
-        console.log("apply new config")
+        l.info("apply new config")
         try {
             DeviceService.reinit(newConfig)
             res.status(200)

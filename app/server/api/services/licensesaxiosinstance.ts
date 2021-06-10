@@ -5,12 +5,7 @@ export interface LicenseData {
     logicalId: string,
     apiKey: string,
     platformPairingApiUrl: string
-}
-
-export interface ProtocolData {
-    version?: string,
-    status?: string,
-    protocols?: any
+    brokerUrls: string[]
 }
 
 export interface CrtData {
@@ -21,7 +16,11 @@ interface DataPayload {
     data: any;
 }
 
-export class PairingAxiosInstance
+/**
+ * @class LicensesAxiosInstance 
+ * @summary Given a valid activation code, retrieves the api key used for pairing with the cloud
+ */
+ export class PairingAxiosInstance
 {
     private axiosInstance : AxiosInstance = axios.create();
     private licenseData : LicenseData;
@@ -29,39 +28,38 @@ export class PairingAxiosInstance
     constructor(licenseData : LicenseData) {
         this.licenseData = licenseData;
         if (!this.licenseData.platformPairingApiUrl.startsWith("http")) {
-            this.licenseData.platformPairingApiUrl = "https://api.platform.corvina.cloud/pairing/v1/" + this.licenseData.platformPairingApiUrl;
+            this.licenseData.platformPairingApiUrl = "https://api.platform.dev.maiaconnect.com/pairing/v1/" + this.licenseData.platformPairingApiUrl;
         }
         this.axiosInstance.defaults.baseURL = `${this.licenseData.platformPairingApiUrl}/devices/${this.licenseData.logicalId}`;
         this.axiosInstance.defaults.headers = { Authorization : `Bearer ${this.licenseData.apiKey}`};
     }
 
-    async getInfo() : Promise<ProtocolData> {
-        return this.axiosInstance.get(``).then( (data : AxiosResponse<DataPayload> ) => {
-            // fix broker url if missing
-            return data.data.data;
-        })
-    }
-
-    async doPairing(csr: string) : Promise<CrtData> {
-        let req = this.axiosInstance.post(`/protocols/astarte_mqtt_v1/credentials`, { data: { csr: csr} }).then( (data : AxiosResponse<DataPayload> ) => {
+    async doPairing(protocol: string, csr: string) : Promise<CrtData> {
+        let req = this.axiosInstance.post(`/protocols/${protocol}/credentials`, { data: { csr: csr} }).then( (data : AxiosResponse<DataPayload> ) => {
             return data.data.data;
         })
         return req;
     }
 
-    async verify(crt: string) : Promise<boolean> {
-        return this.axiosInstance.post(`/protocols/astarte_mqtt_v1/credentials/verify`, { data: { client_crt: crt} }).then( (data : AxiosResponse<DataPayload> ) => {
+    async verify(protocol: string, crt: string) : Promise<boolean> {
+        return this.axiosInstance.post(`/protocols/${protocol}/credentials/verify`, { data: { client_crt: crt} }).then( (data : AxiosResponse<DataPayload> ) => {
             return true;
         })
     }
 }
 
-export class LicensesAxiosInstance
+/**
+ * @class LicensesAxiosInstance 
+ * @summary Given a valid activation code, retrieves the api key used for pairing with the cloud
+ */
+ export class LicensesAxiosInstance
 {
     private axiosInstance : AxiosInstance = axios.create();
     private axiosPairiginInstance : PairingAxiosInstance;
     private actitvationKey: string;
     private pairingEndpoint: string;
+    /** The communication protocol used by the device. Actually only corvina_mqtt_v1 */
+    private static protocol = "corvina_mqtt_v1";
 
     constructor(pairingEndpoint: string, activationKey: string) {
         this.pairingEndpoint = pairingEndpoint;
@@ -74,20 +72,20 @@ export class LicensesAxiosInstance
         let config : AxiosRequestConfig = { params: { activationKey: this.actitvationKey, serialNumber: '' } }
         return this.axiosInstance.get('', config).then( (data : AxiosResponse<LicenseData> ) => {
             this.axiosPairiginInstance = new PairingAxiosInstance(data.data);
+            // split broker urls csv list into an array, filtering the required corvina_mqtt_v1 protocol and replacing it with mqtts
+            if (data.data.brokerUrls) {
+                data.data.brokerUrls = (data.data.brokerUrls as any as string).split(",").filter( u => u.startsWith(LicensesAxiosInstance.protocol)).map( u => u.replace(LicensesAxiosInstance.protocol, "mqtts") )
+            }
             return data.data;
         })
     }
 
-    async getInfo(endpoint: string, apiKey: string, deviceId: string) : Promise<ProtocolData> {
-        return this.axiosPairiginInstance.getInfo();
-    }
-
-    async doPairing(endpoint: string, apiKey: string, csr: string) : Promise<CrtData> {
-        return this.axiosPairiginInstance.doPairing(csr);
+    async doPairing(csr: string) : Promise<CrtData> {
+        return this.axiosPairiginInstance.doPairing(LicensesAxiosInstance.protocol, csr);
     }
 
     async verify(crt: string) : Promise<boolean> {
-        return this.axiosPairiginInstance.verify(crt);
+        return this.axiosPairiginInstance.verify(LicensesAxiosInstance.protocol, crt);
     }
 
 }

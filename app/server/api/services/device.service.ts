@@ -1,13 +1,11 @@
-import L from '../../common/logger'
+import l from '../../common/logger'
 import pem from 'pem'
-import LicensesAxiosInstance, { LicenseData, ProtocolData, CrtData } from './licensesaxiosinstance'
-import mqtt, { IClientOptions, ISecureClientOptions, MqttClient } from 'mqtt';
+import LicensesAxiosInstance, { LicenseData, CrtData } from './licensesaxiosinstance'
+import mqtt, { IClientOptions, MqttClient } from 'mqtt';
 import BSON from 'bson'
 var assert = require('assert');
-import { exec } from 'child_process'
-import URL from 'url';
 
-import fs, { readSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
 
 var x509 = require('x509.js');
@@ -18,7 +16,7 @@ interface CSRData {
 }
 
 import { DataSimulator, AlarmSimulator, BaseSimulator } from './simulation'
-import { TagDesc, MultiLangString, SimulationDesc, AlarmDesc, DataPoint, AlarmState, AlarmData, AlarmCommand} from './commontypes'
+import { TagDesc, AlarmDesc, DataPoint, AlarmData, AlarmCommand} from './commontypes'
 
 enum PacketFormatEnum {
     JSON = "json",
@@ -38,6 +36,11 @@ export interface DeviceConfig {
 
 
 
+/**
+ * @class DeviceService 
+ * @summary Implements a Corvina virtual device
+ * @description Implements a Corvina virtual device receiving the configuration from the cloud and providing tag and alarm simulation.
+ */
 export class DeviceService {
 
     private inited: boolean;
@@ -49,6 +52,9 @@ export class DeviceService {
     private msgSentStats: number = 0;
     private byteSentStats: number = 0;
     private lastDateStats: number = Date.now()
+
+    // If there are multiple endpoint options and one fails, this index is incremented to try the next broker url option
+    private lastTriedBrokerEndpoint: number = 0;
 
     private empyCacheTopic: string;
     private introspectionTopic: string;
@@ -86,10 +92,10 @@ export class DeviceService {
                         } catch (err) { 
                             return [] } 
                     })(),
-                simulateTags: !!(() => { try { return JSON.parse(process.env.SIMULATE_TAGS) } catch (err) { return [] } })(),
+                simulateTags: !!(() => { try { return JSON.parse(process.env.SIMULATE_TAGS) } catch (err) { return false } })(),
                 availableAlarms: (() => { try { return JSON.parse(process.env.AVAILABLE_ALARMS) } catch (err) { return [] } })(),
-                simulateAlarms: !!(() => { try { return JSON.parse(process.env.SIMULATE_ALARMS) } catch (err) { return [] } })(),
-                packetFormat: process.env.PACKET_FORMAT as PacketFormatEnum
+                simulateAlarms: !!(() => { try { return JSON.parse(process.env.SIMULATE_ALARMS) } catch (err) { return false } })(),
+                packetFormat: process.env.PACKET_FORMAT as PacketFormatEnum || PacketFormatEnum.BSON
             }, true)
     }
 
@@ -131,9 +137,9 @@ ACTIVATION_KEY=${this.deviceConfig.activationKey}
 PAIRING_ENDPOINT=${this.deviceConfig.pairingEndpoint}
 AVAILABLE_TAGS_FILE=${this.deviceConfig.availableTagsFile || ""}
 AVAILABLE_TAGS=${ ( ! this.deviceConfig.availableTagsFile || this.deviceConfig.availableTagsFile.length == 0 ) ? JSON.stringify(this.deviceConfig.availableTags) : ''}
-SIMULATE_TAGS=${this.deviceConfig.simulateTags}
+SIMULATE_TAGS=${this.deviceConfig.simulateTags ? 1 : 0}
 AVAILABLE_ALARMS=${JSON.stringify(this.deviceConfig.availableAlarms)}
-SIMULATE_ALARMS=${this.deviceConfig.simulateAlarms}
+SIMULATE_ALARMS=${this.deviceConfig.simulateAlarms ? 1 : 0}
 PACKET_FORMAT=${this.deviceConfig.packetFormat}`
         }
         fs.writeFileSync(envFile, currentContent)
@@ -144,35 +150,11 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
         return this.inited;
     }
 
-    private retrieveServerCert(host: string): Promise<any> {
-        return new Promise((resolve, reject) => {
-            const cmd = `openssl s_client -connect ${host}`
-            console.log(cmd)
-            exec(cmd, function callback(error, stdout, stderr) {
-                console.log(stdout.match(/^.*(-----BEGIN[\s\S]*?-----END CERTIFICATE-----).*$/m)[0].replace(/\n/g, '\\n'))
-                resolve(error)
-                // result
-            });
-            /* let opts = {  key: key, cert: cert, port: port, host: host, hostname: host, rejectUnauthorized: false, 
-                checkServerIdentity:  (h, c) : Error | undefined  => { 
-                    console.log("checkServerIdentity called ", c.raw.toString())
-                    //resolve(c)
-                    return undefined;
-                }
-            }
-            let connection = tls.connect( opts as ConnectionOptions)
-            connection.on('error', (reason) => {
-                console.error(reason);
-                //reject(reason)
-            }) */
-        })
-    }
-
     private createCSR(logicalId: string): Promise<CSRData> {
         return new Promise((resolve, reject) => {
             pem.createCSR({ organization: "System", commonName: `${this.licenseData.logicalId}` }, (err, obj) => {
                 if (err == null) {
-                    console.log("PEM RETURNED", err, obj)
+                    l.debug("PEM RETURNED", err, obj)
                     resolve(obj);
                 } else {
                     reject(err);
@@ -184,21 +166,19 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
 
     private applyConfig(config: any) {
         if (JSON.stringify(config) == JSON.stringify(this.lastConfig)) {
-            console.log("Found same config => return");
+            l.info("Found same config => return");
             return;
         }
         this.readyToTransmit = false;
 
         this.tagToTopicMap = new Map<string, [ string, string ]>();
         this.customIntrospections = ""
-        console.log("APPLY CONFIG: ", JSON.stringify(config))
+        l.debug("Apply config: ", JSON.stringify(config))
 
         assert(config.type == "datamodel")
         for (let n in config.properties) {
             const nodeInterfaces = config.properties[n].interfaces
-            console.log(nodeInterfaces)
             for (let i of nodeInterfaces) {
-                console.log(i)
                 this.customIntrospections += `;${i.interface_name}:${i.version_major}:${i.version_minor}`
 
             }
@@ -224,7 +204,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             }
         }
 
-        console.log("done !")
+        l.debug("done !")
 
         this.lastConfig = config;
         setTimeout(async () => {
@@ -245,7 +225,6 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
         }
     }
 
-
     private connectClient(broker_url: string, key: string, crt: string): Promise<any> {
         return new Promise((resolve, reject) => {
             let mqttClientOptions: IClientOptions = {}
@@ -261,23 +240,22 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             this.subscribeChannel(this.actionAlarmTopic);
 
             this.mqttClient.on('connect', async (v) => {
-                console.log("Successfully connected to mqtt brokern!", v)
+                l.info("Successfully connected to mqtt broker!", v)
 
-                console.log("published introspection " + DeviceService.baseIntrospection + this.customIntrospections)
+                l.debug("published introspection " + DeviceService.baseIntrospection + this.customIntrospections)
                 await this.publish(this.introspectionTopic, DeviceService.baseIntrospection + this.customIntrospections, { qos: 2 });
                 // Empty properties cache
-                console.log("published empty cache")
+                l.debug("published empty cache")
                 await this.publish(this.empyCacheTopic, '1', { qos: 2 });
 
-                console.log(JSON.stringify({ v: JSON.stringify(this.deviceConfig.availableTags), t: Date.now() }))
                 await this.publish(this.availableTagsTopic, this.serializeMessage({ v: JSON.stringify(this.deviceConfig.availableTags), t: Date.now() }), { qos: 2 })
 
-                console.log("published configuration")
+                l.debug("published configuration")
                 await this.publish(this.configTopic, this.serializeMessage({ v: JSON.stringify(this.lastConfig), t: Date.now() }), { qos: 2 });
 
 
                 this.readyToTransmit = true;
-                console.log("Ready to transmit!")
+                l.info("Ready to transmit!")
 
                 DataSimulator.clear();
                 if (this.deviceConfig.simulateTags) {
@@ -291,9 +269,11 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                                     return false;  
                                 } , value.simulation) }
                     )
-                    this.deviceConfig.availableAlarms.forEach(
-                        (value) => { new AlarmSimulator(value, async (data: AlarmData) => { if (this.ready()) { return this.postAlarm(data);  } return false;  } ) }
-                    )
+                    if (this.deviceConfig.simulateAlarms) {
+                        this.deviceConfig.availableAlarms.forEach(
+                            (value) => { new AlarmSimulator(value, async (data: AlarmData) => { if (this.ready()) { return this.postAlarm(data);  } return false;  } ) }
+                        )
+                    }
                 }
         
                 resolve(true);
@@ -301,25 +281,26 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
 
             this.mqttClient.on('close', (v) => {
                 DataSimulator.clear();
-                console.log("STREAM CLOSED!", v)
+                l.warn("Stream closed!", v)
             })
 
             this.mqttClient.on('reconnect', (v) => {
                 DataSimulator.clear();
-                console.log("STREAM RECONNECTED!", v)
+                l.warn("Stream reconnected!", v)
             })
 
             this.mqttClient.on('error', (error) => {
-                console.warn("STREAM ERROR!", error)
+                l.error("Stream error!", error)
+                this.lastTriedBrokerEndpoint++;
                 reject(error);
             })
 
 
             this.mqttClient.on('message', (topic, message) => {
-                console.log(`\nReceived message on ${topic} \n`)
+                l.info(`Received message on ${topic} \n`)
                 switch (topic) {
                     case this.consumerPropertiesTopic.toString():
-                        console.log( "Received consumer properties!" )
+                        l.debug( "Received consumer properties!" )
                         break;
                     case this.applyConfigTopic.toString():
                         this.applyConfig(JSON.parse(BSON.deserialize(message).v))
@@ -329,7 +310,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                         let x : AlarmCommand = BSON.deserialize(message).v;
                         let sim : AlarmSimulator = BaseSimulator.simulatorsByTagName.get(AlarmSimulator.alarmSimulatorMapkey(x.name)) as AlarmSimulator
                         if (!sim) {
-                            console.error("Trying to perform action on unknown alarm ", x.name)
+                            l.error("Trying to perform action on unknown alarm ", x.name)
                         } else {
                             switch (x.command ) {
                                 case "ack":
@@ -342,7 +323,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                         }
                         break;  
                     default:
-                        console.trace("UNKNOWN TOPIC ", topic)
+                        l.info("Nothing to do for topic ", topic)
                 }
             })
 
@@ -355,7 +336,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 if (!err) {
                     resolve(true);
                 } else {
-                    console.warn(`Error subscribing ${channel}: `, err)
+                    l.warn(`Error subscribing ${channel}: `, err)
                     reject(err);
                 }
             })
@@ -363,13 +344,13 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
     }
 
     private publish(channel: string, message: string, options: any = {}): Promise<any> {
-        console.log("GOING TO PUBLISH ", channel, message)
+        l.debug("Going to publish ", channel /*, message */)
         return new Promise((resolve, reject) => {
             this.mqttClient.publish(channel, message, options, (err) => {
                 if (!err) {
                     resolve(true);
                 } else {
-                    console.warn(`Error publishing to ${channel}: `, err)
+                    l.warn(`Error publishing to ${channel}: `, err)
                     reject(err);
                 }
             })
@@ -381,7 +362,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
     async _asyncInit(): Promise<boolean> {
         try {
             this.licenseData = await this.axios.init();
-            console.log("Got api key ", this.licenseData)
+            l.debug("Got api key ", this.licenseData)
             this.inited = true;
 
             /* Below steps should be cached to disk */
@@ -389,32 +370,17 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             // create identity
             const csr: CSRData = await this.createCSR(this.licenseData.logicalId);
 
-            // check connection info
-            const info: ProtocolData = await this.axios.getInfo(this.licenseData.platformPairingApiUrl, this.licenseData.apiKey, this.licenseData.logicalId)
-
             // take first protocol available. Todo: ensures is valid
-            const mqtt_protocol = info.protocols[Object.keys(info.protocols)[0]]
-            assert(mqtt_protocol)
+            //const mqtt_protocol_name = Object.keys(info.protocols)[0]
+            //const mqtt_protocol = info.protocols[mqtt_protocol_name]
 
             // sign the certificate
-            const crt: CrtData = await this.axios.doPairing(this.licenseData.platformPairingApiUrl, this.licenseData.apiKey, csr.csr);
-            console.log(crt)
+            const crt: CrtData = await this.axios.doPairing(csr.csr);
 
             // verify the certificate
             assert(await this.axios.verify(crt.client_crt));
 
             /* ************************************* */
-
-            // Get broker cert
-            const brokerUrl = URL.parse(mqtt_protocol.broker_url)
-            // fix missing url
-            if (brokerUrl.hostname.length == 0) {
-                brokerUrl.hostname = URL.parse(this.licenseData.platformPairingApiUrl).host.replace("api.platform", "broker");
-                brokerUrl.host = brokerUrl.hostname + brokerUrl.host; 
-                brokerUrl.href = brokerUrl.protocol + "//" + brokerUrl.host;
-                mqtt_protocol.broker_url = brokerUrl.href;
-            }
-
 
 
             this.empyCacheTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/control/emptyCache`;
@@ -426,8 +392,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             this.availableTagsTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/availableTags`;
 
             // connect mqtt
-            await this.connectClient(mqtt_protocol.broker_url, csr.clientKey, crt.client_crt);
-            //await this.retrieveServerCert(URL.parse(mqtt_protocol.broker_url).host);
+            await this.connectClient(this.licenseData.brokerUrls[this.lastTriedBrokerEndpoint % this.licenseData.brokerUrls.length], csr.clientKey, crt.client_crt);
 
 
         } catch (err) {
@@ -445,10 +410,10 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             try {
                 await this.initPending;
             } catch (err) {
-                console.error("Error initing: ", err);
+                l.error("Error initing: ", err);
                 this.initPending = null;
                 let randomRetry = 5 + 10 * Math.random()
-                console.error(`Retry init in  ${randomRetry} secs`);
+                l.warn(`Retry init in  ${randomRetry} secs`);
                 setTimeout(() => { this.init() }, randomRetry * 1000)
             }
             this.initPending = null;
@@ -458,17 +423,17 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
 
     async post(dataPoints: Array<DataPoint>): Promise<boolean> {
         if (!this.readyToTransmit) {
-            console.error(`Cannot process ${JSON.stringify(dataPoints)}. Device not ready to transmit!`)
+            l.info(`Cannot process ${JSON.stringify(dataPoints)}. Device not ready to transmit!`)
             return false;
         }
         if (!this.tagToTopicMap) {
-            console.error(`Cannot process ${JSON.stringify(dataPoints)}. Device is not configured yet!`)
+            l.info(`Cannot process ${JSON.stringify(dataPoints)}. Device is not configured yet!`)
             return false;
         }
         for (let dp of dataPoints) {
             const topic = this.tagToTopicMap.get(dp.tagName)
             if (!topic[0]) {
-                console.error(`Unknown topic for tag ${dp.tagName}`);
+                l.warn(`Unknown topic for tag ${dp.tagName}`);
                 return false;
             } else {
                 // cast to cloud types, ensuring the data in not rejected
@@ -495,12 +460,11 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 this.msgSentStats += 1
                 let timeDiff = Date.now() - this.lastDateStats
                 if (timeDiff > 10000) {
-                    console.log(`SEND STATS: ${1000*this.byteSentStats / timeDiff} bytes/s ${1000*this.msgSentStats / timeDiff} msg/s `)
                     this.byteSentStats = 0
                     this.msgSentStats = 0
                     this.lastDateStats = this.lastDateStats + timeDiff;
                 }
-                console.log("GOING TO SEND TO TOPIC", /* this.tagToTopicMap, */ topic[0], payload)
+                l.debug("Going to send to topic ", /* this.tagToTopicMap, */ topic[0] /*, payload*/)
                 try { 
                     await this.mqttClient.publish(topic[0], payload)
                 } catch(e) {
@@ -513,7 +477,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
 
     async postAlarm(alarmData: AlarmData): Promise<boolean> {
         const payload = this.serializeMessage({ t: Date.now(), v: alarmData} )
-        console.log("GOING TO SEND ALARM", { t: Date.now(), v: alarmData}, /* this.tagToTopicMap, */ payload)
+        l.debug("Going to send alarm ", { t: Date.now(), v: alarmData} /*, payload */)
         await this.mqttClient.publish(`${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.DeviceAlarm/a`, payload)
         return true
     }

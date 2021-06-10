@@ -2,7 +2,6 @@ import DeviceService from '../../services/device.service';
 import { DataPoint } from '../../services/commontypes';
 import { Request, Response } from 'express';
 
-/** Handles requests from Nebbiolo FOG CEP */
 export class Controller {
 
     /** 
