@@ -1,7 +1,7 @@
 {
-  "name": "app",
+  "name": "CorvinaReferenceDevice",
   "version": "1.0.0",
-  "description": "My cool TypeScript app",
+  "description": "Reference NodeJS implementation of a Corvina device",
   "main": "index.js",
   "scripts": {
     "start": "node dist/index.js",
