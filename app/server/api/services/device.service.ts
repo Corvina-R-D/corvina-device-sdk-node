@@ -41,6 +41,10 @@ export interface DeviceConfig {
  * @summary Implements a Corvina virtual device
  * @description Implements a Corvina virtual device receiving the configuration from the cloud and providing tag and alarm simulation.
  */
+
+type TagSource = string;
+type TagTopic = string;
+type TagTopicType = string;
 export class DeviceService {
 
     private inited: boolean;
@@ -69,7 +73,8 @@ export class DeviceService {
 
     private lastConfig: string;
 
-    private tagToTopicMap: Map<string, [ string, string ] >;
+
+    private tagToTopicMap: Map<TagSource, [ TagTopic, TagTopicType ][] >;
 
     private deviceConfig: DeviceConfig;
     private axios: LicensesAxiosInstance;
@@ -164,14 +169,19 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
         })
     }
 
-    private applyConfig(config: any) {
+    private async applyConfig(config: any) {
         if (JSON.stringify(config) == JSON.stringify(this.lastConfig)) {
             l.info("Found same config => return");
             return;
         }
+
+        if (this.initPending) {
+            await this.initPending
+        }
+
         this.readyToTransmit = false;
 
-        this.tagToTopicMap = new Map<string, [ string, string ]>();
+        this.tagToTopicMap = new Map<string, [ string, string ][]>();
         this.customIntrospections = ""
         l.debug("Apply config: ", JSON.stringify(config))
 
@@ -180,7 +190,6 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             const nodeInterfaces = config.properties[n].interfaces
             for (let i of nodeInterfaces) {
                 this.customIntrospections += `;${i.interface_name}:${i.version_major}:${i.version_minor}`
-
             }
             let nodeProperties: Array<any> = []
             Object.keys(config.properties[n].properties).forEach((k) => { nodeProperties.push(config.properties[n].properties[k]); })
@@ -188,19 +197,19 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 const dl = prop.datalink;   
                 const map = prop.mapping;
                 if (dl && map) {
-                    this.tagToTopicMap.set(dl.source, [ `${this.licenseData.realm}/${this.licenseData.logicalId}${map.device_endpoint}`, prop.type ]);
+                    this.tagToTopicMap.set(dl.source, (this.tagToTopicMap.get(dl.source) || []).concat( [ [ `${this.licenseData.realm}/${this.licenseData.logicalId}${map.device_endpoint}`, prop.type ] ]) );
                 }
-                // if (prop.type == "object") {
-                //     nodeProperties = nodeProperties.concat( Object.keys(prop.properties).forEach( (k) => { nodeProperties.push( prop.properties[k] ); } ) )
-                // } else if (prop.type == 'array') {   
-                //     nodeProperties = nodeProperties.concat( prop.item )
-                // }
                 if (prop.type == "object") {
                     Object.keys(prop.properties).forEach((k) => { nodeProperties.push(prop.properties[k]); })
                 } else if (prop.type == 'array') {
                     nodeProperties.push(prop.item)
+                } else if (prop.type == 'struct') {
+                    // map single structure properties
+                    Object.keys(prop.properties).forEach((k) => { 
+                        prop.parentStruct = prop
+                        nodeProperties.push(prop.properties[k]); 
+                    })
                 }
-                // FIXME: support struct and array models!!
             }
         }
 
@@ -208,10 +217,6 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
 
         this.lastConfig = config;
         setTimeout(async () => {
-            // wait if an init process is ongoing
-            if (this.initPending) {
-                await this.initPending
-            }
             await this.mqttClient.end();
             await this.mqttClient.reconnect();
         }, 0);
@@ -267,7 +272,8 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                                         return this.post([{ tagName: t, value: v, timestamp: ts }]);  
                                     } 
                                     return false;  
-                                } , value.simulation) }
+                                } , value.simulation) 
+                            }
                     )
                     if (this.deviceConfig.simulateAlarms) {
                         this.deviceConfig.availableAlarms.forEach(
@@ -344,7 +350,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
     }
 
     private publish(channel: string, message: string, options: any = {}): Promise<any> {
-        l.debug("Going to publish ", channel /*, message */)
+        l.debug("Going to publish ", channel /*, message */, this.readyToTransmit)
         return new Promise((resolve, reject) => {
             this.mqttClient.publish(channel, message, options, (err) => {
                 if (!err) {
@@ -396,6 +402,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
 
 
         } catch (err) {
+            console.log("error initing", err)
             this.inited = false;
             throw (err)
         }
@@ -431,44 +438,54 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
             return false;
         }
         for (let dp of dataPoints) {
-            const topic = this.tagToTopicMap.get(dp.tagName)
-            if (!topic[0]) {
-                l.warn(`Unknown topic for tag ${dp.tagName}`);
-                return false;
-            } else {
-                // cast to cloud types, ensuring the data in not rejected
-                switch (topic[1]) {
-                    case 'integer':
-                        dp.value = ~~dp.value;
-                        break;
-                    case 'boolean':
-                        dp.value = !!dp.value;
-                        break;
-                    case 'string':
-                        dp.value = "" + dp.value
-                        break;
-                    case 'double':
-                        dp.value = parseFloat(dp.value)
-                        break;
-                    default:
-                        throw 'Unsupported data type ' + topic[1]
-                        break;
-                }
-
-                const payload = this.serializeMessage({ v: dp.value, t: Date.now() })
-                this.byteSentStats += payload.length
-                this.msgSentStats += 1
-                let timeDiff = Date.now() - this.lastDateStats
-                if (timeDiff > 10000) {
-                    this.byteSentStats = 0
-                    this.msgSentStats = 0
-                    this.lastDateStats = this.lastDateStats + timeDiff;
-                }
-                l.debug("Going to send to topic ", /* this.tagToTopicMap, */ topic[0] /*, payload*/)
-                try { 
-                    await this.mqttClient.publish(topic[0], payload)
-                } catch(e) {
+            const topics = this.tagToTopicMap.get(dp.tagName)
+            for(let topic of topics) {
+                if (!topic[0]) {
+                    l.warn(`Unknown topic for tag ${dp.tagName}`);
                     return false;
+                } else {
+                    // cast to cloud types, ensuring the data in not rejected
+                    switch (topic[1]) {
+                        case 'integer':
+                            dp.value = ~~dp.value;
+                            break;
+                        case 'boolean':
+                            dp.value = !!dp.value;
+                            break;
+                        case 'string':
+                            dp.value = "" + dp.value
+                            break;
+                        case 'double':
+                            dp.value = parseFloat(dp.value)
+                            break;
+                        case 'struct':
+                            // nothing to do: dp.value = dp.value
+                            break;
+                        default:
+                            throw 'Unsupported data type ' + topic[1]
+                            break;
+                    }
+
+                    const payload = this.serializeMessage({ v: dp.value, t: Date.now() })
+                    this.byteSentStats += payload.length
+                    this.msgSentStats += 1
+                    let timeDiff = Date.now() - this.lastDateStats
+                    if (timeDiff > 10000) {
+                        this.byteSentStats = 0
+                        this.msgSentStats = 0
+                        this.lastDateStats = this.lastDateStats + timeDiff;
+                    }
+                    l.debug("Going to send to topic ", /* this.tagToTopicMap, */ topic[0] /*, payload*/, this.readyToTransmit)
+                    try { 
+                        if (!this.readyToTransmit) {
+                            l.warn("Cannot publish if not ready to transmit" , this.readyToTransmit)
+                            throw "Cannot publish if not ready to transmit"
+                        }
+                        await this.mqttClient.publish(topic[0], payload)
+                    } catch(e) {
+                        l.error("Got error while publishing: ", e)
+                        return false;
+                    }
                 }
             }
         }

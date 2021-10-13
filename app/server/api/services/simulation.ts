@@ -5,6 +5,7 @@ import { AlarmDesc, AlarmState, AlarmData, MultiLangString, SimulationDesc, Simu
 
 //import ease from 'd3-ease'
 const ease  = require('d3-ease')
+import _ from "lodash"
 
 
 enum StepSimulationState
@@ -60,7 +61,7 @@ interface AbstractSimulator
 
 export class BaseSimulator implements AbstractSimulator {
 
-    protected tag;
+    public tag: string;
 
     /*! dependees: exiting dependency edges in dep graph */
     public depsOut: Map<string, BaseSimulator>;
@@ -178,6 +179,16 @@ export class DataSimulator extends BaseSimulator {
 
         DataSimulator.simulatorsByTagName.set(tag, this)
 
+        if (tag.indexOf(".") >= 0) {
+            const structName = tag.split(".")[0]
+            let structSimulator = DataSimulator.simulatorsByTagName.get(structName)
+            if (!structSimulator) {
+                // split structures
+                structSimulator = new DataSimulator(structName, 'struct', callback, desc);
+            }
+            BaseSimulator.$(this, structName);
+        }
+
 
         this.defAmplitude = 500 * Math.random();
         this.defPhase = Math.random() * 4 * Math.PI
@@ -245,192 +256,204 @@ export class DataSimulator extends BaseSimulator {
     async loop() {
         const ts = Date.now()
         this.value = null;
-        if (!this.desc) {
-            switch (this.type) {
-                case 'integer':
-                    this.value = (Math.random() * this.defAmplitude) | 0;
-                    break;
-                case 'boolean':
-                    this.value = Math.random() > this.defPeriod;
-                    break;
-                case 'double':
-                    this.value = this.defAmplitude * Math.sin(this.defPhase + ts * 2 * Math.PI / this.defPeriod)
-                    break;
-                case 'string':
-                    this.value = Math.random().toString();
-                    break;
-                default:
-                    throw "Unsupported type " + this.type
+        if (this.type == 'struct') {
+            // get all deps
+            if (!this.value) {
+                this.value = {}
             }
+            Array.from(this.depsOut.values()).forEach((x) => {
+                this.value[x.tag.slice(this.tag.length+1)] = x.value
+            })
         } else {
-            switch (this.desc.type) {
-                case SimulationType.FUNCTION:
-                    {
-                        let props = this.desc as FunctionSimulationProperties
-                        try {
-                            if (!props._f) {
-                                props._f = ( new Function("$", props.f) as () => any )
+
+            if (!this.desc) {
+                switch (this.type) {
+                    case 'integer':
+                        this.value = (Math.random() * this.defAmplitude) | 0;
+                        break;
+                    case 'boolean':
+                        this.value = Math.random() > this.defPeriod;
+                        break;
+                    case 'double':
+                        this.value = this.defAmplitude * Math.sin(this.defPhase + ts * 2 * Math.PI / this.defPeriod)
+                        break;
+                    case 'string':
+                        this.value = Math.random().toString();
+                        break;
+                    default:
+                        throw "Unsupported type " + this.type
+                }
+            } else {
+                switch (this.desc.type) {
+                    case SimulationType.FUNCTION:
+                        {
+                            let props = this.desc as FunctionSimulationProperties
+                            try {
+                                if (!props._f) {
+                                    props._f = ( new Function("$", props.f) as () => any )
+                                }
+                                this.value = props._f.call(this, (t) => { return BaseSimulator.$(this, t) })
+                            } catch(e) {
+                                l.error("Error evaluating", e)
                             }
-                            this.value = props._f.call(this, (t) => { return BaseSimulator.$(this, t) })
-                        } catch(e) {
-                            l.error("Error evaluating", e)
-                        }
-                        if (this.value == null || this.value == undefined) {
-                            return
-                        }
-
-                        let noised = this.applyNoise(this.value)
-                        switch (this.type) {
-                            case 'integer':
-                                this.value = ~~noised;
-                                break;
-                            case 'boolean':
-                                this.value = ( ~~noised ) > this.defPeriod ;
-                                break;
-                            case 'double':
-                                this.value = noised;
-                                break;
-                            case 'string':
-                                this.value = (typeof noised == 'string' || ((noised as any) instanceof String )) ? noised : JSON.stringify(noised);
-                                break;
-                            default:
-                                throw "Unsupported type " + this.type
-                
-                        }
-                        this.value = this.nullify(this.value)
-                    }
-                    break;
-                case SimulationType.CONST:
-                    {
-                        let props = this.desc as ConstSimulationProperties
-                        let noised = this.applyNoise(props.value)
-                        switch (this.type) {
-                            case 'integer':
-                                this.value = ~~noised;
-                                break;
-                            case 'boolean':
-                                this.value = ( ~~noised ) > this.defPeriod ;
-                                break;
-                            case 'double':
-                                this.value = noised;
-                                break;
-                            case 'string':
-                                this.value = (typeof noised == 'string' || ((noised as any) instanceof String )) ? noised : JSON.stringify(noised);
-                                break;
-                            default:
-                                throw "Unsupported type " + this.type
-                        }
-                        this.value = this.nullify(this.value)
-                    }
-                    break;
-                case SimulationType.SINE:
-                    {
-                        let props = this.desc as SineSimulationProperties
-                        let v = this.applyNoise(props.offset + props.amplitude * Math.sin(props.phase + ts * 2 * Math.PI / (BaseSimulator.simulationMs * props.period)))
-                        switch (this.type) {
-                            case 'integer':
-                                this.value = ~~v;
-                                this.value = this.nullify(this.value)
-                                break;
-                            case 'boolean':
-                                this.value = Math.random() > this.defPeriod;
-                                break;         
-                            case 'double':
-                                this.value = v;
-                                break;
-                            case 'string':
-                                this.value = (typeof v == 'string' || ((v as any) instanceof String )) ? v : JSON.stringify(v);
-                                break;
-                            default:
-                                throw "Unsupported type " + this.type
-                        }
-                        this.value = this.nullify(this.value)
-                    }
-                    break;
-                case SimulationType.STEP:
-                    {
-                        let props = this.desc as StepSimulationProperties
-                        let f = ease[props.easing]
-                        if (props.easingProps) {
-                            Object.assign(f, props.easingProps)
-                        }
-                        let fun = f as ((number) => number)
-
-                        const computeNewTarget = () => {
-                            props.state.state = StepSimulationState.TRANSITION
-                            props.state.origin = props.state.current
-                            const rand = (Math.random() - 0.5)
-                            props.state.target = props.state.origin + rand * props.amplitude
-                            if (props.state.target > props.offset + props.amplitude) {
-                                props.state.target = props.state.origin - rand * props.amplitude
+                            if (this.value == null || this.value == undefined) {
+                                return
                             }
-                            if (props.state.target < props.offset) {
-                                props.state.target = props.state.origin - rand * props.amplitude
+
+                            let noised = this.applyNoise(this.value)
+                            switch (this.type) {
+                                case 'integer':
+                                    this.value = ~~noised;
+                                    break;
+                                case 'boolean':
+                                    this.value = ( ~~noised ) > this.defPeriod ;
+                                    break;
+                                case 'double':
+                                    this.value = noised;
+                                    break;
+                                case 'string':
+                                    this.value = (typeof noised == 'string' || ((noised as any) instanceof String )) ? noised : JSON.stringify(noised);
+                                    break;
+                                default:
+                                    throw "Unsupported type " + this.type
+                    
                             }
-                            const rand2 = Math.random()
-                            props.state.duration = BaseSimulator.simulationMs * (props.dt_min + (rand2 * (props.dt_max - props.dt_min)))
-                            props.state.start = ts
+                            this.value = this.nullify(this.value)
                         }
-
-                        if (!props.state) {
-                            (props as any).state = {}
-                            props.state.current = props.offset + props.amplitude / 2
-                            // initialize state
-                            computeNewTarget()
-                        }
-
-                        const jumpRand = Math.random()
-                        if (jumpRand < props.jump_probability) {
-                            // jump!!!
-                            computeNewTarget()
-                        }
-
-                        let v = props.offset
-                        if (props.state.state == StepSimulationState.TRANSITION) {
-                            let dt = ts - props.state.start
-                            if (dt > props.state.duration) {
-                                props.state.state = StepSimulationState.STABLE
-                                v = props.state.target
-                            } else {
-                                props.state.current = props.state.origin + (props.state.target - props.state.origin) * fun(dt / props.state.duration);
-                                v = props.state.current
+                        break;
+                    case SimulationType.CONST:
+                        {
+                            let props = this.desc as ConstSimulationProperties
+                            let noised = this.applyNoise(props.value)
+                            switch (this.type) {
+                                case 'integer':
+                                    this.value = ~~noised;
+                                    break;
+                                case 'boolean':
+                                    this.value = ( ~~noised ) > this.defPeriod ;
+                                    break;
+                                case 'double':
+                                    this.value = noised;
+                                    break;
+                                case 'string':
+                                    this.value = (typeof noised == 'string' || ((noised as any) instanceof String )) ? noised : JSON.stringify(noised);
+                                    break;
+                                default:
+                                    throw "Unsupported type " + this.type
                             }
-                        } else {
-                            v = props.state.current
+                            this.value = this.nullify(this.value)
                         }
-
-                        let noised = this.applyNoise(v, props.offset, props.offset+props.amplitude)
-
-                        switch (this.type) {
-                            case 'integer':
-                                this.value = ~~noised;
-                                break;
-                            case 'boolean':
-                                this.value = (~~noised) > this.defPeriod;
-                                break;
-                            case 'double':
-                                this.value = noised;
-                                break;
-                            case 'string':
-                                this.value = (typeof noised == 'string' || ((noised as any) instanceof String ))  ? noised : JSON.stringify(noised);
-                                break;
-                            default:
-                                throw "Unsupported type " + this.type
-                        }
-
-                        this.nullify(this.value, (o: boolean, n: boolean) => {
-                            if (n == true) {
-                                this.value = 0
+                        break;
+                    case SimulationType.SINE:
+                        {
+                            let props = this.desc as SineSimulationProperties
+                            let v = this.applyNoise(props.offset + props.amplitude * Math.sin(props.phase + ts * 2 * Math.PI / (BaseSimulator.simulationMs * props.period)))
+                            switch (this.type) {
+                                case 'integer':
+                                    this.value = ~~v;
+                                    this.value = this.nullify(this.value)
+                                    break;
+                                case 'boolean':
+                                    this.value = Math.random() > this.defPeriod;
+                                    break;         
+                                case 'double':
+                                    this.value = v;
+                                    break;
+                                case 'string':
+                                    this.value = (typeof v == 'string' || ((v as any) instanceof String )) ? v : JSON.stringify(v);
+                                    break;
+                                default:
+                                    throw "Unsupported type " + this.type
                             }
-                            if (o == true && n == false) {
-                                this.value = props.offset
-                                props.state.current = props.offset
+                            this.value = this.nullify(this.value)
+                        }
+                        break;
+                    case SimulationType.STEP:
+                        {
+                            let props = this.desc as StepSimulationProperties
+                            let f = ease[props.easing]
+                            if (props.easingProps) {
+                                Object.assign(f, props.easingProps)
+                            }
+                            let fun = f as ((number) => number)
+
+                            const computeNewTarget = () => {
+                                props.state.state = StepSimulationState.TRANSITION
+                                props.state.origin = props.state.current
+                                const rand = (Math.random() - 0.5)
+                                props.state.target = props.state.origin + rand * props.amplitude
+                                if (props.state.target > props.offset + props.amplitude) {
+                                    props.state.target = props.state.origin - rand * props.amplitude
+                                }
+                                if (props.state.target < props.offset) {
+                                    props.state.target = props.state.origin - rand * props.amplitude
+                                }
+                                const rand2 = Math.random()
+                                props.state.duration = BaseSimulator.simulationMs * (props.dt_min + (rand2 * (props.dt_max - props.dt_min)))
+                                props.state.start = ts
+                            }
+
+                            if (!props.state) {
+                                (props as any).state = {}
+                                props.state.current = props.offset + props.amplitude / 2
+                                // initialize state
                                 computeNewTarget()
                             }
-                        })
-                    }
-                    break;
+
+                            const jumpRand = Math.random()
+                            if (jumpRand < props.jump_probability) {
+                                // jump!!!
+                                computeNewTarget()
+                            }
+
+                            let v = props.offset
+                            if (props.state.state == StepSimulationState.TRANSITION) {
+                                let dt = ts - props.state.start
+                                if (dt > props.state.duration) {
+                                    props.state.state = StepSimulationState.STABLE
+                                    v = props.state.target
+                                } else {
+                                    props.state.current = props.state.origin + (props.state.target - props.state.origin) * fun(dt / props.state.duration);
+                                    v = props.state.current
+                                }
+                            } else {
+                                v = props.state.current
+                            }
+
+                            let noised = this.applyNoise(v, props.offset, props.offset+props.amplitude)
+
+                            switch (this.type) {
+                                case 'integer':
+                                    this.value = ~~noised;
+                                    break;
+                                case 'boolean':
+                                    this.value = (~~noised) > this.defPeriod;
+                                    break;
+                                case 'double':
+                                    this.value = noised;
+                                    break;
+                                case 'string':
+                                    this.value = (typeof noised == 'string' || ((noised as any) instanceof String ))  ? noised : JSON.stringify(noised);
+                                    break;
+                                default:
+                                    throw "Unsupported type " + this.type
+                            }
+
+                            this.nullify(this.value, (o: boolean, n: boolean) => {
+                                if (n == true) {
+                                    this.value = 0
+                                }
+                                if (o == true && n == false) {
+                                    this.value = props.offset
+                                    props.state.current = props.offset
+                                    computeNewTarget()
+                                }
+                            })
+                        }
+                        break;
+                }
             }
+
         }
 
         if ( !BaseSimulator.filterDuplications || JSON.stringify(this.value) != JSON.stringify(this.lastSentValue)) {
