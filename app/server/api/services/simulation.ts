@@ -174,7 +174,6 @@ export class DataSimulator extends BaseSimulator {
         super (tag);
 
         this.type = type;
-        this.callback = callback;
         this.desc = desc
 
         DataSimulator.simulatorsByTagName.set(tag, this)
@@ -187,6 +186,9 @@ export class DataSimulator extends BaseSimulator {
                 structSimulator = new DataSimulator(structName, 'struct', callback, desc);
             }
             BaseSimulator.$(this, structName);
+            // do not set the callback function for single properties, always notify the whole structure
+        } else {
+            this.callback = callback;
         }
 
 

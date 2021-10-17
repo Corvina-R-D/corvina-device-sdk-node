@@ -3,6 +3,7 @@ import pem from 'pem'
 import LicensesAxiosInstance, { LicenseData, CrtData } from './licensesaxiosinstance'
 import mqtt, { IClientOptions, MqttClient } from 'mqtt';
 import BSON from 'bson'
+import _ from 'lodash'
 var assert = require('assert');
 
 import fs from 'fs'
@@ -45,6 +46,13 @@ export interface DeviceConfig {
 type TagSource = string;
 type TagTopic = string;
 type TagTopicType = string;
+
+interface TagTopicDetails {
+    tagTopic: TagTopic;
+    tagTopicType: TagTopicType;
+    propType: TagTopicType; 
+}
+
 export class DeviceService {
 
     private inited: boolean;
@@ -74,7 +82,7 @@ export class DeviceService {
     private lastConfig: string;
 
 
-    private tagToTopicMap: Map<TagSource, [ TagTopic, TagTopicType ][] >;
+    private tagToTopicMap: Map<TagSource, TagTopicDetails [] >;
 
     private deviceConfig: DeviceConfig;
     private axios: LicensesAxiosInstance;
@@ -181,7 +189,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
 
         this.readyToTransmit = false;
 
-        this.tagToTopicMap = new Map<string, [ string, string ][]>();
+        this.tagToTopicMap = new Map<TagSource, TagTopicDetails []>();
         this.customIntrospections = ""
         l.debug("Apply config: ", JSON.stringify(config))
 
@@ -197,7 +205,12 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 const dl = prop.datalink;   
                 const map = prop.mapping;
                 if (dl && map) {
-                    this.tagToTopicMap.set(dl.source, (this.tagToTopicMap.get(dl.source) || []).concat( [ [ `${this.licenseData.realm}/${this.licenseData.logicalId}${map.device_endpoint}`, prop.type ] ]) );
+                    if (prop.parentStruct) {
+                        // is a property of a struct
+                        this.tagToTopicMap.set(dl.source, (this.tagToTopicMap.get(dl.source) || []).concat( [ {tagTopic: `${this.licenseData.realm}/${this.licenseData.logicalId}${map.device_endpoint.slice(0,map.device_endpoint.lastIndexOf("/"))}`, tagTopicType: prop.type, propType: prop.type } ]) );
+                    } else {
+                        this.tagToTopicMap.set(dl.source, (this.tagToTopicMap.get(dl.source) || []).concat( [ {tagTopic: `${this.licenseData.realm}/${this.licenseData.logicalId}${map.device_endpoint}`, tagTopicType: prop.type, propType: prop.type } ]) );
+                    }
                 }
                 if (prop.type == "object") {
                     Object.keys(prop.properties).forEach((k) => { nodeProperties.push(prop.properties[k]); })
@@ -206,8 +219,9 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                 } else if (prop.type == 'struct') {
                     // map single structure properties
                     Object.keys(prop.properties).forEach((k) => { 
-                        prop.parentStruct = prop
-                        nodeProperties.push(prop.properties[k]); 
+                        const p = _.cloneDeep(prop.properties[k]) // avoid altering input structure
+                        p.parentStruct = prop
+                        nodeProperties.push(p); 
                     })
                 }
             }
@@ -440,12 +454,12 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
         for (let dp of dataPoints) {
             const topics = this.tagToTopicMap.get(dp.tagName)
             for(let topic of topics) {
-                if (!topic[0]) {
+                if (!topic.tagTopic) {
                     l.warn(`Unknown topic for tag ${dp.tagName}`);
                     return false;
                 } else {
                     // cast to cloud types, ensuring the data in not rejected
-                    switch (topic[1]) {
+                    switch (topic.tagTopicType) {
                         case 'integer':
                             dp.value = ~~dp.value;
                             break;
@@ -462,7 +476,7 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                             // nothing to do: dp.value = dp.value
                             break;
                         default:
-                            throw 'Unsupported data type ' + topic[1]
+                            throw 'Unsupported data type ' + topic.tagTopicType
                             break;
                     }
 
@@ -475,13 +489,13 @@ PACKET_FORMAT=${this.deviceConfig.packetFormat}`
                         this.msgSentStats = 0
                         this.lastDateStats = this.lastDateStats + timeDiff;
                     }
-                    l.debug("Going to send to topic ", /* this.tagToTopicMap, */ topic[0] /*, payload*/, this.readyToTransmit)
+                    l.debug("Going to send to topic ", /* this.tagToTopicMap, */ topic.tagTopic /*, payload*/, this.readyToTransmit)
                     try { 
                         if (!this.readyToTransmit) {
                             l.warn("Cannot publish if not ready to transmit" , this.readyToTransmit)
                             throw "Cannot publish if not ready to transmit"
                         }
-                        await this.mqttClient.publish(topic[0], payload)
+                        await this.mqttClient.publish(topic.tagTopic, payload)
                     } catch(e) {
                         l.error("Got error while publishing: ", e)
                         return false;

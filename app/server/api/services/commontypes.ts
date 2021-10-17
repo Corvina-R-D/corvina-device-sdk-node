@@ -1,4 +1,4 @@
-import BSON from 'bson'
+import BSON, {Int32, Long, Binary } from 'bson'
 
 export enum NoiseSimulationType {
     ABSOLUTE = "abs",
@@ -83,15 +83,15 @@ export interface AlarmData {
     desc: string,
     ts: Date,
     evTs: Date,
-    sev?: BSON.Int32,
+    sev?: Int32,
     state: number,
     tag?: string,
     v_d?: number,
-    v_i?: BSON.Int32,
+    v_i?: Int32,
     v_b?: boolean,
     v_s?: string,
-    v_l?: BSON.Long,
-    v_o?: BSON.Binary
+    v_l?: Long,
+    v_o?: Binary
 }
 
 export interface AlarmCommand {
