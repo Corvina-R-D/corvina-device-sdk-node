@@ -1,14 +1,28 @@
 {
-  "compileOnSave": false,
   "compilerOptions": {
-    "target": "esnext",
     "module": "commonjs",
-    "esModuleInterop": true,
-    "sourceMap": true,
     "moduleResolution": "node",
-    "outDir": "dist",
-    "typeRoots": ["node_modules/@types"]
-  },
-  "include": ["typings.d.ts", "server/**/*.ts"],
-  "exclude": ["node_modules"]
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "esnext",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "typeRoots": [
+      "node_modules/@types"
+    ],
+    "paths": {
+      "@corvina/device-client": [
+        "libs/device-client/src"
+      ],
+      "@corvina/device-client/*": [
+        "libs/device-client/src/*"
+      ]
+    }
+  }
 }

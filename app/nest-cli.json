@@ -1,0 +1,26 @@
+{
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "plugins": [
+      {
+        "name": "@nestjs/swagger",
+        "options": {
+          "introspectComments": true
+        }
+      }
+    ],
+    "webpack": true
+  },
+  "projects": {
+    "device-client": {
+      "type": "library",
+      "root": "libs/device-client",
+      "entryFile": "index",
+      "sourceRoot": "libs/device-client/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/device-client/tsconfig.lib.json"
+      }
+    }
+  }
+}

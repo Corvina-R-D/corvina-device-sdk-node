@@ -60,5 +60,12 @@ In addition simulation values can be nullified with a given probability for a gi
 
 ```json
 { "nullable":  { "probability": [0..1], "dt_min" : ms, "dt_max": ms }
+
 ```
+
+## Sending JSON
+
+Message publisher are inited on json paths.
+
+When a new JSON arrives all related publishers are triggered.
 
