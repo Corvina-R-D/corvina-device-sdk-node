@@ -3,16 +3,18 @@
 ## Quick Start
 
 ```shell
-npm install
+yarn install
 
-ACTIVATION_KEY=4D05-4037-974E-9482 PAIRING_ENDPOINT=https://pairing.corvina.io/api/v1/ npm run dev
+ACTIVATION_KEY=.... PAIRING_ENDPOINT=https://pairing.corvina.io/api/v1/ yarn start:dev example
 ```
+
+A web interface will be available at `http://localhost:3000/`.
 
 ## Setup configuration environment
 
-The virtual device can be configured passing environment variables inline or in file `app/.env`
+The virtual device can be configured passing environment variables inline or in file `.env`
 
-The last configuration is saved in `app/.env` after lines:
+The last configuration is saved in `.env` after lines:
 
 ```
 ### LAST-ENV ###
@@ -48,7 +50,7 @@ There are several simulation types:
 | **function :** `"type": "function", "f" : "function javascript code"` | custom javascript function. The additional operator `$('tagname')` can be used to access the simulated value of other tags  | 
 |  |  |
 
-Additional noise can be cascaded to the any simulation type. The noise can be absolute or percentual:
+Additional noise can be cascaded to any simulation type. The noise can be absolute or percentual:
 
 | | |
 | - | - |
@@ -63,9 +65,21 @@ In addition simulation values can be nullified with a given probability for a gi
 
 ```
 
-## Sending JSON
+#### Simulating atomic structures
+Atomic structures can be simulated by simulating individual properties using the naming conventions: `struct_name.property_name`.
 
-Message publisher are inited on json paths.
+For instance, the following code:
 
-When a new JSON arrives all related publishers are triggered.
+```
+AVAILABLE_TAGS=[{"name":"struct.Tag1","type":"integer"},{"name":"struct.Tag2","type":"integer"}]
+```
 
+ will simulate sending both `struct` as a whole, and `struct.Tag1` and `struct.Tag2` as single properties.
+
+In particular, the whole simulated structure can be attached to a Corvina structure only if the set of properties matches (same names, case sensitive).
+
+### Using the example rest interface
+
+It is possible to send generic JSON posting to the `/device/json` endpoint.
+
+Each of the JSON properties posted will be advertised to the cloud with the corresponding JSON paths.

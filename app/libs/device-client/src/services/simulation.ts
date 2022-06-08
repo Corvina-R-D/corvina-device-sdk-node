@@ -82,10 +82,7 @@ export class BaseSimulator implements AbstractSimulator {
         this.tag = tag;
 
         if (!BaseSimulator.simulatorsByTagName) {
-            BaseSimulator.simulatorsByTagName = new Map<
-                string,
-                BaseSimulator
-            >();
+            BaseSimulator.simulatorsByTagName = new Map<string, BaseSimulator>();
         }
 
         BaseSimulator.filterDuplications = !!(() => {
@@ -153,8 +150,7 @@ export class BaseSimulator implements AbstractSimulator {
 
     /*! Getter function to access cached value from other simulators by tag name */
     static $ = (source: BaseSimulator, tagName: string) => {
-        const target: BaseSimulator =
-            BaseSimulator.simulatorsByTagName.get(tagName);
+        const target: BaseSimulator = BaseSimulator.simulatorsByTagName.get(tagName);
         if (target == undefined) {
             l.error(`Cannot resolve dependency ${tagName}`);
             return;
@@ -175,11 +171,7 @@ export class BaseSimulator implements AbstractSimulator {
 }
 
 export class DataSimulator extends BaseSimulator {
-    private callback: (
-        tagName: string,
-        value: number,
-        ts: number,
-    ) => Promise<boolean>;
+    private callback: (tagName: string, value: number, ts: number) => Promise<boolean>;
     private type;
     private defAmplitude;
     private defPhase;
@@ -189,11 +181,7 @@ export class DataSimulator extends BaseSimulator {
     constructor(
         tag: string,
         type: string,
-        callback: (
-            tagName: string,
-            value: number,
-            ts: number,
-        ) => Promise<boolean>,
+        callback: (tagName: string, value: number, ts: number) => Promise<boolean>,
         desc: SimulationDesc,
     ) {
         super(tag);
@@ -205,16 +193,10 @@ export class DataSimulator extends BaseSimulator {
 
         if (tag.indexOf(".") >= 0) {
             const structName = tag.split(".")[0];
-            let structSimulator =
-                DataSimulator.simulatorsByTagName.get(structName);
+            let structSimulator = DataSimulator.simulatorsByTagName.get(structName);
             if (!structSimulator) {
                 // split structures
-                structSimulator = new DataSimulator(
-                    structName,
-                    "struct",
-                    callback,
-                    desc,
-                );
+                structSimulator = new DataSimulator(structName, "struct", callback, desc);
             }
             BaseSimulator.$(this, structName);
             // do not set the callback function for single properties, always notify the whole structure
@@ -234,9 +216,7 @@ export class DataSimulator extends BaseSimulator {
             if (props.noise.type == NoiseSimulationType.ABSOLUTE) {
                 noised = v + (Math.random() - 0.5) * props.noise.amplitude;
             } else {
-                noised =
-                    v +
-                    (Math.random() - 0.5) * ((v * props.noise.amplitude) / 100);
+                noised = v + (Math.random() - 0.5) * ((v * props.noise.amplitude) / 100);
             }
             if (noised < min) {
                 return min;
@@ -249,13 +229,7 @@ export class DataSimulator extends BaseSimulator {
         return v;
     }
 
-    nullify(
-        v: any,
-        callback: (
-            nullifyingPrev: boolean,
-            nullifyingCurrent: boolean,
-        ) => void = null,
-    ): any {
+    nullify(v: any, callback: (nullifyingPrev: boolean, nullifyingCurrent: boolean) => void = null): any {
         const props = this.desc as SimulationDesc;
         if (props.nullable) {
             if (!props.nullable.state) {
@@ -274,16 +248,10 @@ export class DataSimulator extends BaseSimulator {
                     props.nullable.state.start = now;
                     props.nullable.state.duration =
                         BaseSimulator.simulationMs *
-                        (props.nullable.dt_min +
-                            Math.random() *
-                                (props.nullable.dt_max -
-                                    props.nullable.dt_min));
+                        (props.nullable.dt_min + Math.random() * (props.nullable.dt_max - props.nullable.dt_min));
                 }
             } else {
-                if (
-                    now >
-                    props.nullable.state.start + props.nullable.state.duration
-                ) {
+                if (now > props.nullable.state.start + props.nullable.state.duration) {
                     props.nullable.state.nullifying = false;
                 }
             }
@@ -324,12 +292,7 @@ export class DataSimulator extends BaseSimulator {
                         this.value = Math.random() > this.defPeriod;
                         break;
                     case "double":
-                        this.value =
-                            this.defAmplitude *
-                            Math.sin(
-                                this.defPhase +
-                                    (ts * 2 * Math.PI) / this.defPeriod,
-                            );
+                        this.value = this.defAmplitude * Math.sin(this.defPhase + (ts * 2 * Math.PI) / this.defPeriod);
                         break;
                     case "string":
                         this.value = Math.random().toString();
@@ -341,14 +304,10 @@ export class DataSimulator extends BaseSimulator {
                 switch (this.desc.type) {
                     case SimulationType.FUNCTION:
                         {
-                            const props = this
-                                .desc as FunctionSimulationProperties;
+                            const props = this.desc as FunctionSimulationProperties;
                             try {
                                 if (!props._f) {
-                                    props._f = new Function(
-                                        "$",
-                                        props.f,
-                                    ) as () => any;
+                                    props._f = new Function("$", props.f) as () => any;
                                 }
                                 this.value = props._f.call(this, (t) => {
                                     return BaseSimulator.$(this, t);
@@ -373,8 +332,7 @@ export class DataSimulator extends BaseSimulator {
                                     break;
                                 case "string":
                                     this.value =
-                                        typeof noised == "string" ||
-                                        (noised as any) instanceof String
+                                        typeof noised == "string" || (noised as any) instanceof String
                                             ? noised
                                             : JSON.stringify(noised);
                                     break;
@@ -386,8 +344,7 @@ export class DataSimulator extends BaseSimulator {
                         break;
                     case SimulationType.CONST:
                         {
-                            const props = this
-                                .desc as ConstSimulationProperties;
+                            const props = this.desc as ConstSimulationProperties;
                             const noised = this.applyNoise(props.value);
                             switch (this.type) {
                                 case "integer":
@@ -401,8 +358,7 @@ export class DataSimulator extends BaseSimulator {
                                     break;
                                 case "string":
                                     this.value =
-                                        typeof noised == "string" ||
-                                        (noised as any) instanceof String
+                                        typeof noised == "string" || (noised as any) instanceof String
                                             ? noised
                                             : JSON.stringify(noised);
                                     break;
@@ -420,9 +376,7 @@ export class DataSimulator extends BaseSimulator {
                                     props.amplitude *
                                         Math.sin(
                                             props.phase +
-                                                (ts * 2 * Math.PI) /
-                                                    (BaseSimulator.simulationMs *
-                                                        props.period),
+                                                (ts * 2 * Math.PI) / (BaseSimulator.simulationMs * props.period),
                                         ),
                             );
                             switch (this.type) {
@@ -438,10 +392,7 @@ export class DataSimulator extends BaseSimulator {
                                     break;
                                 case "string":
                                     this.value =
-                                        typeof v == "string" ||
-                                        (v as any) instanceof String
-                                            ? v
-                                            : JSON.stringify(v);
+                                        typeof v == "string" || (v as any) instanceof String ? v : JSON.stringify(v);
                                     break;
                                 default:
                                     throw "Unsupported type " + this.type;
@@ -459,37 +410,25 @@ export class DataSimulator extends BaseSimulator {
                             const fun = f as (number) => number;
 
                             const computeNewTarget = () => {
-                                props.state.state =
-                                    StepSimulationState.TRANSITION;
+                                props.state.state = StepSimulationState.TRANSITION;
                                 props.state.origin = props.state.current;
                                 const rand = Math.random() - 0.5;
-                                props.state.target =
-                                    props.state.origin + rand * props.amplitude;
-                                if (
-                                    props.state.target >
-                                    props.offset + props.amplitude
-                                ) {
-                                    props.state.target =
-                                        props.state.origin -
-                                        rand * props.amplitude;
+                                props.state.target = props.state.origin + rand * props.amplitude;
+                                if (props.state.target > props.offset + props.amplitude) {
+                                    props.state.target = props.state.origin - rand * props.amplitude;
                                 }
                                 if (props.state.target < props.offset) {
-                                    props.state.target =
-                                        props.state.origin -
-                                        rand * props.amplitude;
+                                    props.state.target = props.state.origin - rand * props.amplitude;
                                 }
                                 const rand2 = Math.random();
                                 props.state.duration =
-                                    BaseSimulator.simulationMs *
-                                    (props.dt_min +
-                                        rand2 * (props.dt_max - props.dt_min));
+                                    BaseSimulator.simulationMs * (props.dt_min + rand2 * (props.dt_max - props.dt_min));
                                 props.state.start = ts;
                             };
 
                             if (!props.state) {
                                 (props as any).state = {};
-                                props.state.current =
-                                    props.offset + props.amplitude / 2;
+                                props.state.current = props.offset + props.amplitude / 2;
                                 // initialize state
                                 computeNewTarget();
                             }
@@ -501,32 +440,22 @@ export class DataSimulator extends BaseSimulator {
                             }
 
                             let v = props.offset;
-                            if (
-                                props.state.state ==
-                                StepSimulationState.TRANSITION
-                            ) {
+                            if (props.state.state == StepSimulationState.TRANSITION) {
                                 const dt = ts - props.state.start;
                                 if (dt > props.state.duration) {
-                                    props.state.state =
-                                        StepSimulationState.STABLE;
+                                    props.state.state = StepSimulationState.STABLE;
                                     v = props.state.target;
                                 } else {
                                     props.state.current =
                                         props.state.origin +
-                                        (props.state.target -
-                                            props.state.origin) *
-                                            fun(dt / props.state.duration);
+                                        (props.state.target - props.state.origin) * fun(dt / props.state.duration);
                                     v = props.state.current;
                                 }
                             } else {
                                 v = props.state.current;
                             }
 
-                            const noised = this.applyNoise(
-                                v,
-                                props.offset,
-                                props.offset + props.amplitude,
-                            );
+                            const noised = this.applyNoise(v, props.offset, props.offset + props.amplitude);
 
                             switch (this.type) {
                                 case "integer":
@@ -540,8 +469,7 @@ export class DataSimulator extends BaseSimulator {
                                     break;
                                 case "string":
                                     this.value =
-                                        typeof noised == "string" ||
-                                        (noised as any) instanceof String
+                                        typeof noised == "string" || (noised as any) instanceof String
                                             ? noised
                                             : JSON.stringify(noised);
                                     break;
@@ -549,34 +477,25 @@ export class DataSimulator extends BaseSimulator {
                                     throw "Unsupported type " + this.type;
                             }
 
-                            this.nullify(
-                                this.value,
-                                (o: boolean, n: boolean) => {
-                                    if (n == true) {
-                                        this.value = 0;
-                                    }
-                                    if (o == true && n == false) {
-                                        this.value = props.offset;
-                                        props.state.current = props.offset;
-                                        computeNewTarget();
-                                    }
-                                },
-                            );
+                            this.nullify(this.value, (o: boolean, n: boolean) => {
+                                if (n == true) {
+                                    this.value = 0;
+                                }
+                                if (o == true && n == false) {
+                                    this.value = props.offset;
+                                    props.state.current = props.offset;
+                                    computeNewTarget();
+                                }
+                            });
                         }
                         break;
                 }
             }
         }
 
-        if (
-            !BaseSimulator.filterDuplications ||
-            JSON.stringify(this.value) != JSON.stringify(this.lastSentValue)
-        ) {
+        if (!BaseSimulator.filterDuplications || JSON.stringify(this.value) != JSON.stringify(this.lastSentValue)) {
             try {
-                if (
-                    this.callback &&
-                    (await this.callback(this.tag, this.value, ts))
-                ) {
+                if (this.callback && (await this.callback(this.tag, this.value, ts))) {
                     this.lastSentValue = this.value;
                 }
             } catch (e) {}
@@ -610,9 +529,7 @@ export class AlarmSimulator extends BaseSimulator {
             sev: this.alarm.severity,
             tag: this.alarm.source,
             name: this.alarm.name,
-            state: this.alarm.enabled
-                ? AlarmState.ALARM_ENABLED
-                : AlarmState.ALARM_NONE,
+            state: this.alarm.enabled ? AlarmState.ALARM_ENABLED : AlarmState.ALARM_NONE,
         } as any as AlarmData;
 
         if (this.alarm.desc && this.alarm.desc["en"]) {
@@ -625,10 +542,7 @@ export class AlarmSimulator extends BaseSimulator {
             }
         }
 
-        BaseSimulator.simulatorsByTagName.set(
-            AlarmSimulator.alarmSimulatorMapkey(alarm.name),
-            this,
-        );
+        BaseSimulator.simulatorsByTagName.set(AlarmSimulator.alarmSimulatorMapkey(alarm.name), this);
     }
 
     // Case ack required and reset required
@@ -685,9 +599,7 @@ export class AlarmSimulator extends BaseSimulator {
                 if (this.alarm.reset_required) {
                     this.alarmData.state |= AlarmState.ALARM_REQUIRES_RESET;
                 }
-                l.log(
-                    `Alarm ${this.alarmData.name} acknowledged by ${user} : ${comment}`,
-                );
+                l.log(`Alarm ${this.alarmData.name} acknowledged by ${user} : ${comment}`);
 
                 this.propagate();
             } else {
@@ -715,12 +627,8 @@ export class AlarmSimulator extends BaseSimulator {
         } else {
             if (this.alarmData.state & AlarmState.ALARM_REQUIRES_RESET) {
                 if (!(this.alarmData.state & AlarmState.ALARM_ACTIVE)) {
-                    this.alarmData.state &= ~(
-                        AlarmState.ALARM_ACKED | AlarmState.ALARM_REQUIRES_RESET
-                    );
-                    l.log(
-                        `Alarm ${this.alarmData.name} reset by ${user} : ${comment}`,
-                    );
+                    this.alarmData.state &= ~(AlarmState.ALARM_ACKED | AlarmState.ALARM_REQUIRES_RESET);
+                    l.log(`Alarm ${this.alarmData.name} reset by ${user} : ${comment}`);
                     this.propagate();
                 } else {
                     l.warn(`Cannot reset active alarm ${this.alarmData.name}`);
@@ -766,22 +674,12 @@ export class AlarmSimulator extends BaseSimulator {
                 for (const r in this.tagRefs) {
                     this.tagRefs[r] = BaseSimulator.$(this, r);
                 }
-                this.alarmData.desc = Mustache.render(
-                    this.alarm.desc["en"],
-                    this.tagRefs,
-                    {},
-                    ["[", "]"],
-                );
+                this.alarmData.desc = Mustache.render(this.alarm.desc["en"], this.tagRefs, {}, ["[", "]"]);
             }
             this.alarmData.ts = new Date();
 
             if (await this.callback(this.alarmData)) {
-                l.debug(
-                    "Updated alarm value ",
-                    this.lastSentValue,
-                    this.value,
-                    this.alarmData,
-                );
+                l.debug("Updated alarm value ", this.lastSentValue, this.value, this.alarmData);
             }
         } catch (e) {
             l.error(e);
@@ -804,10 +702,7 @@ export class AlarmSimulator extends BaseSimulator {
                 }
                 // call _f passing the function to resolve simulator by tag name as $, and $src the reference to tag source
                 this.value = props._f.call(this, (t) => {
-                    return (
-                        BaseSimulator.$(this, t),
-                        BaseSimulator.$(this, this.alarm.source)
-                    );
+                    return BaseSimulator.$(this, t), BaseSimulator.$(this, this.alarm.source);
                 });
             } catch (e) {
                 l.error("Error evaluating", e);
@@ -817,8 +712,7 @@ export class AlarmSimulator extends BaseSimulator {
             }
         }
 
-        const changedValue =
-            JSON.stringify(this.value) != JSON.stringify(this.lastSentValue);
+        const changedValue = JSON.stringify(this.value) != JSON.stringify(this.lastSentValue);
 
         if (changedValue) {
             if (this.value) {
@@ -829,21 +723,13 @@ export class AlarmSimulator extends BaseSimulator {
 
             if (
                 this.alarmData.state & AlarmState.ALARM_ACTIVE &&
-                !(
-                    this.alarmData.state &
-                    (AlarmState.ALARM_REQUIRES_ACK |
-                        AlarmState.ALARM_REQUIRES_RESET)
-                )
+                !(this.alarmData.state & (AlarmState.ALARM_REQUIRES_ACK | AlarmState.ALARM_REQUIRES_RESET))
             ) {
                 // set a new event timestamp
                 this.alarmData.evTs = new Date();
             }
 
-            if (
-                this.alarm.ack_required &&
-                this.value &&
-                !(this.alarmData.state & AlarmState.ALARM_ACKED)
-            ) {
+            if (this.alarm.ack_required && this.value && !(this.alarmData.state & AlarmState.ALARM_ACKED)) {
                 this.alarmData.state |= AlarmState.ALARM_REQUIRES_ACK;
             }
 

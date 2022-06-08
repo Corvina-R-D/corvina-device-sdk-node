@@ -39,7 +39,7 @@ export interface SimulationDesc {
 export interface TagDesc {
     name: string;
     type: string;
-    simulation: SimulationDesc;
+    simulation?: SimulationDesc;
 }
 
 export interface MultiLangString {
@@ -57,8 +57,11 @@ export interface AlarmDesc {
     simulation: SimulationDesc;
 }
 
+/**
+ * tagName can be undefined, and in that case value is expected to be an object
+ */
 export interface DataPoint {
-    tagName: string; // tag name
+    tagName: string | undefined;
     value: any;
     timestamp: number; // posix time
 }

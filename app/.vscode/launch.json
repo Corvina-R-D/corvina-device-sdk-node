@@ -7,17 +7,18 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Debug Nest Framework",
-      "args": [
-        "${workspaceFolder}/src/main.ts"
+      "name": "Debug Example Device",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": [
+        "start:debug",
+        "example"
       ],
-      "runtimeExecutable": "${workspaceFolder}/node_modules/nodemon/bin/nodemon.js",
-      "runtimeArgs": [ "--exec" , "node --nolazy -r tsconfig-paths/register  -r ts-node/register"],
       "sourceMaps": true,
-      "__envFile": "${workspaceFolder}/.env",
+      "envFile": "${workspaceFolder}/apps/example/.env",
       "cwd": "${workspaceRoot}/",
       "console": "integratedTerminal",
       "protocol": "inspector",
+      "autoAttachChildProcesses": true,
       "restart": true
     },
     {

@@ -1,12 +1,7 @@
 import { MessageSubscriber } from "./messagesubscriber";
 import { Injectable, Logger as l } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { EventEmitter } from "stream";
-import parseDeviceConfig, {
-    DeviceConfiguration,
-    DeviceConfigurationData,
-} from "./configparser";
-import { DeviceService } from "./device.service";
+import parseDeviceConfig, { DeviceConfiguration, DeviceConfigurationData } from "./configparser";
 import { INVALID_STATE_TS, State } from "./messagepublisherpolicies";
 import { MessageSender } from "./messagesender";
 import { castCorvinaType } from "../common/types";
@@ -16,10 +11,7 @@ import { castCorvinaType } from "../common/types";
  * the cloud.
  */
 @Injectable()
-export default class CorvinaDataInterface
-    extends EventEmitter
-    implements MessageSender
-{
+export default class CorvinaDataInterface extends EventEmitter implements MessageSender {
     protected _config: DeviceConfiguration;
     private CYCLE_TIME: number;
 
@@ -35,11 +27,7 @@ export default class CorvinaDataInterface
         this.CYCLE_TIME = cycleTime;
     }
 
-    public sendMessage(
-        topic: string,
-        payload: unknown,
-        options?: unknown,
-    ): Promise<any> {
+    public sendMessage(topic: string, payload: unknown, options?: unknown): Promise<any> {
         // implement me
         return new Promise(undefined);
     }
@@ -100,10 +88,8 @@ export default class CorvinaDataInterface
         }
 
         tagPublishers.forEach((publisher) => {
-            nextTime = Math.min(
-                nextTime,
-                publisher.update({ tagName, newState, currentTime }),
-            );
+            nextTime = Math.min(nextTime, publisher.update({ tagName, newState, currentTime }));
+            
             if (nextTime <= currentTime) {
                 publisher.publish(currentTime, this);
             }
@@ -113,6 +99,9 @@ export default class CorvinaDataInterface
     public onWrite(subscriber: MessageSubscriber, message: any) {
         l.verbose("CorvinaDataInterface.onWrite", message);
         this.emit("write", {
+            topic: subscriber.topic,
+            modelPath: subscriber.modelPath,
+            fieldName: subscriber.fieldName,
             v: castCorvinaType(message.v, subscriber.topicType),
         });
     }

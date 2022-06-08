@@ -1,8 +1,5 @@
 import { Logger as l } from "@nestjs/common";
-import {
-    AggregatedMessagePublisher,
-    MessagePublisher,
-} from "./messagepublisher";
+import { AggregatedMessagePublisher, MessagePublisher } from "./messagepublisher";
 import { MessageSubscriber } from "./messagesubscriber";
 import {
     MessagePublisherPolicy,
@@ -16,6 +13,7 @@ import {
     MessagePublisher_OrPolicy,
     MessagePublisher_AnalogBandPolicy,
 } from "./messagepublisherpolicies";
+import { NodePath } from "@babel/core";
 
 export type TypedObject<T> = { [key: string]: T };
 export type ConfigurationType = "datamodel";
@@ -105,11 +103,7 @@ export type ModelNode = ModelBasic | ModelArray | ModelInterfaceCreatable;
 
 export type ModelInterfaceCreatable = ModelObject | ModelStruct;
 
-export type ModelType =
-    | ModelBasicType
-    | ModelObjectType
-    | ModelArrayType
-    | ModelStructType;
+export type ModelType = ModelBasicType | ModelObjectType | ModelArrayType | ModelStructType;
 
 // Mappings
 export interface BasePolicyData {
@@ -207,9 +201,7 @@ export interface MappingSendPolicy {
 }
 
 export interface SendPolicyData extends BasePolicyData, MappingSendPolicy {}
-export interface HistoryPolicyData
-    extends BasePolicyData,
-        MappingHistoryPolicy {}
+export interface HistoryPolicyData extends BasePolicyData, MappingHistoryPolicy {}
 
 export type PolicyData = SendPolicyData | HistoryPolicyData;
 
@@ -242,10 +234,7 @@ export interface MappingStruct extends ModelStruct, MappingAdditionalInfo {
     properties: TypedObject<MappingBasic>;
 }
 
-export type MappingNode =
-    | MappingBasic
-    | MappingArray
-    | MappingInterfaceCreatable;
+export type MappingNode = MappingBasic | MappingArray | MappingInterfaceCreatable;
 
 export type MappingInterfaceCreatable = MappingObject | MappingStruct;
 
@@ -265,9 +254,7 @@ export interface DeviceConfigurationStruct extends MappingStruct, MappingInfo {
     properties: TypedObject<DeviceConfigurationBasic>;
 }
 
-export type DeviceConfigurationWithProperties =
-    | DeviceConfigurationObject
-    | DeviceConfigurationStruct;
+export type DeviceConfigurationWithProperties = DeviceConfigurationObject | DeviceConfigurationStruct;
 
 export type DeviceConfigurationNode =
     | DeviceConfigurationBasic
@@ -306,23 +293,17 @@ export interface DeviceConfigurationData {
 
 class InvalidConfigurationError extends Error {}
 
-function parseConditions(
-    condition: MappingSendPolicyCondition,
-): MessagePublisherPolicy {
+function parseConditions(condition: MappingSendPolicyCondition): MessagePublisherPolicy {
     switch (condition.type) {
         case "and":
             {
-                const andConditions = (
-                    condition as LogicCondition
-                ).operands.map(parseConditions);
+                const andConditions = (condition as LogicCondition).operands.map(parseConditions);
                 return new MessagePublisher_AndPolicy(andConditions);
             }
             break;
         case "or":
             {
-                const orConditions = (condition as LogicCondition).operands.map(
-                    parseConditions,
-                );
+                const orConditions = (condition as LogicCondition).operands.map(parseConditions);
                 return new MessagePublisher_OrPolicy(orConditions);
             }
             break;
@@ -352,9 +333,7 @@ function parsePolicy(
     if (policyData.instanceOf) {
         const namedPolicy = namedPolicies.get(policyData.instanceOf);
         if (!namedPolicy) {
-            throw new InvalidConfigurationError(
-                `Could not find referred policy ${policyData.instanceOf}`,
-            );
+            throw new InvalidConfigurationError(`Could not find referred policy ${policyData.instanceOf}`);
         }
         return namedPolicy.clone();
     }
@@ -368,11 +347,7 @@ function parsePolicy(
             case "timer":
                 {
                     const timerTrigger = trigger as IntervalTrigger;
-                    triggerOperands.push(
-                        new MessagePublisher_TimerPolicy(
-                            timerTrigger.intervalMs,
-                        ),
-                    );
+                    triggerOperands.push(new MessagePublisher_TimerPolicy(timerTrigger.intervalMs));
                 }
                 break;
             case "onchange":
@@ -388,12 +363,8 @@ function parsePolicy(
                         isPercent: onChangeTrigger.deadbandPercent != undefined,
                     });
                     if (onChangeTrigger.minIntervalMs != undefined) {
-                        const op2 = new MessagePublisher_TimerPolicy(
-                            onChangeTrigger.minIntervalMs,
-                        );
-                        triggerOperands.push(
-                            new MessagePublisher_AndPolicy([op1, op2]),
-                        );
+                        const op2 = new MessagePublisher_TimerPolicy(onChangeTrigger.minIntervalMs);
+                        triggerOperands.push(new MessagePublisher_AndPolicy([op1, op2]));
                     } else {
                         triggerOperands.push(op1);
                     }
@@ -401,26 +372,19 @@ function parsePolicy(
                 break;
             case "fieldchange":
                 {
-                    const onFieldChangeTrigger =
-                        trigger as OnFieldChangeTrigger;
+                    const onFieldChangeTrigger = trigger as OnFieldChangeTrigger;
                     const op1 = new MessagePublisher_OnFieldChangedPolicy({
                         fieldName: onFieldChangeTrigger.fieldName,
-                        skipFirstNChanges:
-                            onFieldChangeTrigger.skipFirstNChanges,
+                        skipFirstNChanges: onFieldChangeTrigger.skipFirstNChanges,
                         deadband:
                             onFieldChangeTrigger.deadband != undefined
                                 ? onFieldChangeTrigger.deadband
                                 : onFieldChangeTrigger.deadbandPercent,
-                        isPercent:
-                            onFieldChangeTrigger.deadbandPercent != undefined,
+                        isPercent: onFieldChangeTrigger.deadbandPercent != undefined,
                     });
                     if (onFieldChangeTrigger.minIntervalMs != undefined) {
-                        const op2 = new MessagePublisher_TimerPolicy(
-                            onFieldChangeTrigger.minIntervalMs,
-                        );
-                        triggerOperands.push(
-                            new MessagePublisher_AndPolicy([op1, op2]),
-                        );
+                        const op2 = new MessagePublisher_TimerPolicy(onFieldChangeTrigger.minIntervalMs);
+                        triggerOperands.push(new MessagePublisher_AndPolicy([op1, op2]));
                     } else {
                         triggerOperands.push(op1);
                     }
@@ -433,9 +397,7 @@ function parsePolicy(
                         tagName: onLevelTrigger.tagName,
                         skipFirstNChanges: onLevelTrigger.skipFirstNChanges,
                         level:
-                            onLevelTrigger.levelString != undefined
-                                ? onLevelTrigger.levelString
-                                : onLevelTrigger.level,
+                            onLevelTrigger.levelString != undefined ? onLevelTrigger.levelString : onLevelTrigger.level,
                         levelMode: onLevelTrigger.mode,
                         deadband:
                             onLevelTrigger.deadband != undefined
@@ -444,12 +406,8 @@ function parsePolicy(
                         isPercent: onLevelTrigger.deadbandPercent != undefined,
                     });
                     if (onLevelTrigger.minIntervalMs != undefined) {
-                        const op2 = new MessagePublisher_TimerPolicy(
-                            onLevelTrigger.minIntervalMs,
-                        );
-                        triggerOperands.push(
-                            new MessagePublisher_AndPolicy([op, op2]),
-                        );
+                        const op2 = new MessagePublisher_TimerPolicy(onLevelTrigger.minIntervalMs);
+                        triggerOperands.push(new MessagePublisher_AndPolicy([op, op2]));
                     } else {
                         triggerOperands.push(op);
                     }
@@ -472,12 +430,8 @@ function parsePolicy(
                     isPercent: onFieldLevelTrigger.deadbandPercent != undefined,
                 });
                 if (onFieldLevelTrigger.minIntervalMs != undefined) {
-                    const op2 = new MessagePublisher_TimerPolicy(
-                        onFieldLevelTrigger.minIntervalMs,
-                    );
-                    triggerOperands.push(
-                        new MessagePublisher_AndPolicy([op, op2]),
-                    );
+                    const op2 = new MessagePublisher_TimerPolicy(onFieldLevelTrigger.minIntervalMs);
+                    triggerOperands.push(new MessagePublisher_AndPolicy([op, op2]));
                 } else {
                     triggerOperands.push(op);
                 }
@@ -507,10 +461,7 @@ function parsePolicy(
  * Tag must be escaped !
  * Eg.  indexTemplateApply("/PLC_PRG/Tag1[${0},${1}]}", QStringList() << 2 << 3)
  */
-export function indexTemplateApply(
-    templateString: string,
-    values: number[],
-): string {
+export function indexTemplateApply(templateString: string, values: number[]): string {
     let output = "";
     let content = "";
     let index = -1;
@@ -534,10 +485,7 @@ export function indexTemplateApply(
         } else {
             switch (templateString[i]) {
                 case "\\":
-                    state =
-                        (state as State) == State.CONTENT
-                            ? State.ESCAPING_CONTENT
-                            : State.ESCAPING_STRING;
+                    state = (state as State) == State.CONTENT ? State.ESCAPING_CONTENT : State.ESCAPING_STRING;
                     break;
                 case "$":
                     switch (state) {
@@ -619,10 +567,7 @@ function initPublisher(
     deviceConfig: DeviceConfiguration,
 ) {
     l.verbose("Init publisher", sourceTag, sendPolicy);
-    const policy = parsePolicy(
-        { type: "send", ...sendPolicy },
-        deviceConfig.namedPolicies,
-    );
+    const policy = parsePolicy({ type: "send", ...sendPolicy }, deviceConfig.namedPolicies);
     if (!policy) {
         return;
     }
@@ -654,6 +599,7 @@ function parseDeviceConfigurationNode({
     node,
     deviceConfig,
     nodeName,
+    nodePath,
     parentNode,
     arrayIndexes,
     parentPublisher,
@@ -661,22 +607,15 @@ function parseDeviceConfigurationNode({
     node: DeviceConfigurationNode;
     deviceConfig: DeviceConfiguration;
     nodeName: string;
+    nodePath: string;
     parentNode: DeviceConfigurationNode;
     arrayIndexes: number[];
     parentPublisher: MessagePublisher;
 }) {
-    l.verbose(
-        "parseDeviceConfigurationNode",
-        node,
-        nodeName,
-        parentNode,
-        arrayIndexes,
-    );
+    //l.verbose("parseDeviceConfigurationNode", node, nodeName, parentNode, arrayIndexes);
 
     const sourceTag =
-        node.datalink && node.datalink.source
-            ? indexTemplateApply(node.datalink.source, arrayIndexes)
-            : undefined;
+        node.datalink && node.datalink.source ? indexTemplateApply(node.datalink.source, arrayIndexes) : undefined;
     const device_endpoint =
         node.mapping && node.mapping.device_endpoint
             ? indexTemplateApply(node.mapping.device_endpoint, arrayIndexes)
@@ -694,6 +633,7 @@ function parseDeviceConfigurationNode({
                     node: childNode,
                     deviceConfig,
                     nodeName: p,
+                    nodePath: nodePath + "/" + p,
                     parentNode: node,
                     arrayIndexes,
                     parentPublisher: null,
@@ -707,12 +647,7 @@ function parseDeviceConfigurationNode({
                     sourceTag,
                     topic: device_endpoint,
                 });
-                initPublisher(
-                    publisher,
-                    sourceTag,
-                    node.sendPolicy,
-                    deviceConfig,
-                );
+                initPublisher(publisher, sourceTag, node.sendPolicy, deviceConfig);
             } else {
                 publisher = new AggregatedMessagePublisher({
                     sourceTag: undefined,
@@ -725,7 +660,7 @@ function parseDeviceConfigurationNode({
                     server_endpoint,
                     new MessageSubscriber({
                         topic: server_endpoint,
-                        tagName: sourceTag,
+                        modelPath: nodePath,
                         topicType: node.type,
                     }),
                 );
@@ -738,6 +673,7 @@ function parseDeviceConfigurationNode({
                     node: childNode,
                     deviceConfig,
                     nodeName: p,
+                    nodePath: nodePath + "/" + p,
                     parentNode: node,
                     arrayIndexes,
                     parentPublisher: publisher,
@@ -752,6 +688,7 @@ function parseDeviceConfigurationNode({
                     node: node.item,
                     deviceConfig,
                     nodeName: name,
+                    nodePath: nodePath + "/" + name,
                     parentNode: node,
                     arrayIndexes: [...arrayIndexes, i],
                     parentPublisher: null,
@@ -767,38 +704,28 @@ function parseDeviceConfigurationNode({
                         topic: device_endpoint,
                         topicType: node.type,
                     });
-                    initPublisher(
-                        publisher,
-                        sourceTag,
-                        node.sendPolicy,
-                        deviceConfig,
-                    );
+                    initPublisher(publisher, sourceTag, node.sendPolicy, deviceConfig);
                 }
                 if (server_endpoint != undefined) {
                     deviceConfig.subscribedTopics.set(
                         server_endpoint,
                         new MessageSubscriber({
                             topic: server_endpoint,
-                            tagName: sourceTag,
-                            topicType: node.type
+                            modelPath: nodePath,
+                            topicType: node.type,
                         }),
                     );
                 }
             } else if (parentNode.type == "struct") {
                 if (node.sendPolicy) {
-                    throw new InvalidConfigurationError(
-                        `Cannot specify send policy for struct properties`,
-                    );
+                    throw new InvalidConfigurationError(`Cannot specify send policy for struct properties`);
                 }
                 if (
                     (parentPublisher as AggregatedMessagePublisher).tagName &&
                     sourceTag &&
-                    sourceTag !=
-                        (parentPublisher as AggregatedMessagePublisher).tagName
+                    sourceTag != (parentPublisher as AggregatedMessagePublisher).tagName
                 ) {
-                    throw new InvalidConfigurationError(
-                        `Cannot mix field datalinks with whole structure datalinks`,
-                    );
+                    throw new InvalidConfigurationError(`Cannot mix field datalinks with whole structure datalinks`);
                 }
                 if (parentPublisher.tagName == undefined) {
                     const pub = parentPublisher as AggregatedMessagePublisher;
@@ -809,10 +736,7 @@ function parseDeviceConfigurationNode({
                     });
                     if (sourceTag != undefined) {
                         let pubs = deviceConfig.tagPublishers.get(sourceTag);
-                        pubs =
-                            pubs == undefined
-                                ? new Set<MessagePublisher>()
-                                : pubs;
+                        pubs = pubs == undefined ? new Set<MessagePublisher>() : pubs;
                         pubs.add(parentPublisher);
                         deviceConfig.tagPublishers.set(sourceTag, pubs);
                     }
@@ -824,7 +748,7 @@ function parseDeviceConfigurationNode({
                         server_endpoint,
                         new MessageSubscriber({
                             topic: server_endpoint,
-                            tagName: sourceTag,
+                            modelPath: nodePath,
                             topicType: node.type,
                             fieldName: nodeName,
                         }),
@@ -835,9 +759,11 @@ function parseDeviceConfigurationNode({
     }
 }
 
-export default function parseDeviceConfig(
-    config: DeviceConfigurationData,
-): DeviceConfiguration {
+function simplifyInstanceOf(fullInstanceOf: string) {
+    return fullInstanceOf.slice(0, fullInstanceOf.indexOf("."));
+}
+
+export default function parseDeviceConfig(config: DeviceConfigurationData): DeviceConfiguration {
     const result: DeviceConfiguration = {
         interfaceNames: [],
         tagPublishers: new Map<string, Set<MessagePublisher>>(),
@@ -851,16 +777,11 @@ export default function parseDeviceConfig(
 
     // expect to have at least one data model
     if (!config.properties || Object.keys(config.properties).length <= 0) {
-        throw new InvalidConfigurationError(
-            `Cannot find any configuration data`,
-        );
+        throw new InvalidConfigurationError(`Cannot find any configuration data`);
     }
 
-    const configData: ConfigurationData =
-        config.properties[Object.keys(config.properties)[0]];
-    l.verbose(
-        `Parsing configuration data ${Object.keys(config.properties)[0]}`,
-    );
+    const configData: ConfigurationData = config.properties[Object.keys(config.properties)[0]];
+    l.verbose(`Parsing configuration data ${Object.keys(config.properties)[0]}`);
 
     // expect to have interfaces
     if (!configData.interfaces) {
@@ -889,6 +810,7 @@ export default function parseDeviceConfig(
             node: configData.properties[prop],
             deviceConfig: result,
             nodeName: prop,
+            nodePath: simplifyInstanceOf(configData.instanceOf) + "/" + prop,
             parentNode: configData,
             arrayIndexes: [],
             parentPublisher: null,

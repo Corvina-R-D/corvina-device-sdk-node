@@ -1,23 +1,23 @@
 /*! Publish data according to new data and installed policies */
 export class MessageSubscriber {
     private _topic: string;
-    private _tagName: string;
-    private _fieldName: string;
+    private _modelPath: string;
     private _topicType: string;
+    private _fieldName: string;
 
     constructor({
         topic,
-        tagName,
+        modelPath,
         topicType,
         fieldName,
     }: {
         topic: string;
-        tagName: string;
+        modelPath: string;
         topicType: string;
         fieldName?: string;
     }) {
         this._topic = topic;
-        this._tagName = tagName;
+        this._modelPath = modelPath;
         this._topicType = topicType;
         this._fieldName = fieldName;
     }
@@ -30,8 +30,8 @@ export class MessageSubscriber {
         return this._topicType;
     }
 
-    get tagName(): string {
-        return this._tagName;
+    get modelPath(): string {
+        return this._modelPath;
     }
 
     get fieldName(): string {
@@ -39,8 +39,6 @@ export class MessageSubscriber {
     }
 
     toString(): string {
-        return `MessageSubscriber@${this._topic} => ${this._tagName}${
-            this._fieldName ? "." + this._fieldName : ""
-        }`;
+        return `MessageSubscriber@${this._topic} => ${this._modelPath}${this._fieldName ? "." + this._fieldName : ""}`;
     }
 }

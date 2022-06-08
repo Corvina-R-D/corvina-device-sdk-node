@@ -28,8 +28,7 @@ export class PairingAxiosInstance {
         this.licenseData = licenseData;
         if (!this.licenseData.platformPairingApiUrl.startsWith("http")) {
             this.licenseData.platformPairingApiUrl =
-                "https://api.platform.dev.maiaconnect.com/pairing/v1/" +
-                this.licenseData.platformPairingApiUrl;
+                "https://api.platform.dev.maiaconnect.com/pairing/v1/" + this.licenseData.platformPairingApiUrl;
         }
         this.axiosInstance.defaults.baseURL = `${this.licenseData.platformPairingApiUrl}/devices/${this.licenseData.logicalId}`;
         this.axiosInstance.defaults.headers = {
@@ -80,41 +79,25 @@ export class LicensesAxiosInstance {
         const config: AxiosRequestConfig = {
             params: { activationKey: this.actitvationKey, serialNumber: "" },
         };
-        return this.axiosInstance
-            .get("", config)
-            .then((data: AxiosResponse<LicenseData>) => {
-                this.axiosPairiginInstance = new PairingAxiosInstance(
-                    data.data,
-                );
-                // split broker urls csv list into an array, filtering the required corvina_mqtt_v1 protocol and replacing it with mqtts
-                if (data.data.brokerUrls) {
-                    data.data.brokerUrls = (
-                        data.data.brokerUrls as any as string
-                    )
-                        .split(",")
-                        .filter((u) =>
-                            u.startsWith(LicensesAxiosInstance.protocol),
-                        )
-                        .map((u) =>
-                            u.replace(LicensesAxiosInstance.protocol, "mqtts"),
-                        );
-                }
-                return data.data;
-            });
+        return this.axiosInstance.get("", config).then((data: AxiosResponse<LicenseData>) => {
+            this.axiosPairiginInstance = new PairingAxiosInstance(data.data);
+            // split broker urls csv list into an array, filtering the required corvina_mqtt_v1 protocol and replacing it with mqtts
+            if (data.data.brokerUrls) {
+                data.data.brokerUrls = (data.data.brokerUrls as any as string)
+                    .split(",")
+                    .filter((u) => u.startsWith(LicensesAxiosInstance.protocol))
+                    .map((u) => u.replace(LicensesAxiosInstance.protocol, "mqtts"));
+            }
+            return data.data;
+        });
     }
 
     async doPairing(csr: string): Promise<CrtData> {
-        return this.axiosPairiginInstance.doPairing(
-            LicensesAxiosInstance.protocol,
-            csr,
-        );
+        return this.axiosPairiginInstance.doPairing(LicensesAxiosInstance.protocol, csr);
     }
 
     async verify(crt: string): Promise<boolean> {
-        return this.axiosPairiginInstance.verify(
-            LicensesAxiosInstance.protocol,
-            crt,
-        );
+        return this.axiosPairiginInstance.verify(LicensesAxiosInstance.protocol, crt);
     }
 }
 

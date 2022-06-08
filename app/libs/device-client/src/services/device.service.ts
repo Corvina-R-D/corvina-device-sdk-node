@@ -2,21 +2,12 @@ import { PacketFormatEnum } from "./../common/types";
 import { State } from "./messagepublisherpolicies";
 import { Logger as l } from "@nestjs/common";
 import pem from "pem";
-import LicensesAxiosInstance, {
-    LicenseData,
-    CrtData,
-} from "./licensesaxiosinstance";
+import LicensesAxiosInstance, { LicenseData, CrtData } from "./licensesaxiosinstance";
 import mqtt, { IClientOptions, MqttClient } from "mqtt";
-import BSON from "bson";
+import BSON, { DBRef } from "bson";
 import _ from "lodash";
 import { DataSimulator, AlarmSimulator, BaseSimulator } from "./simulation";
-import {
-    TagDesc,
-    AlarmDesc,
-    DataPoint,
-    AlarmData,
-    AlarmCommand,
-} from "../common/types";
+import { TagDesc, AlarmDesc, DataPoint, AlarmData, AlarmCommand } from "../common/types";
 import { Injectable } from "@nestjs/common";
 
 const assert = require("assert");
@@ -36,11 +27,20 @@ export interface DeviceConfig {
     activationKey?: string;
     pairingEndpoint?: string;
     availableTagsFile?: string; // json array string
-    availableTags?: Array<TagDesc>; // json array string
+    availableTags?: Map<string, TagDesc>; // json array string
+    dynamicTags?: Map<string, TagDesc>; // dynamic tags generated when posting json data
     simulateTags?: boolean;
-    availableAlarms?: Array<AlarmDesc>; // json array string
+    availableAlarms?: Map<string, AlarmDesc>; // json array string
     simulateAlarms?: boolean;
     packetFormat?: PacketFormatEnum;
+}
+
+export interface DeviceStatus {
+    msgSent: number;
+    bytesSent: number;
+    inited: boolean;
+    connected: boolean;
+    ready: boolean;
 }
 
 /**
@@ -49,56 +49,58 @@ export interface DeviceConfig {
  * @description Implements a Corvina virtual device receiving the configuration from the cloud and providing tag and alarm simulation.
  */
 
-type TagSource = string;
-type TagTopic = string;
-type TagTopicType = string;
-
-interface TagTopicDetails {
-    tagTopic: TagTopic;
-    tagTopicType: TagTopicType;
-    propType: TagTopicType;
-}
-
 /**
  * Manages the device identity and communication with the cloud
  */
 @Injectable()
 export class DeviceService extends CorvinaDataInterface {
-    private inited: boolean;
-    private initPending: Promise<boolean>;
-    private readyToTransmit: boolean;
-    private licenseData: LicenseData;
-    private mqttClient: MqttClient;
+    protected inited: boolean;
+    protected initPending: Promise<boolean>;
+    protected readyToTransmit: boolean;
+    protected licenseData: LicenseData;
+    protected mqttClient: MqttClient;
 
-    private msgSentStats = 0;
-    private byteSentStats = 0;
-    private lastDateStats: number = Date.now();
+    protected msgSentStats = 0;
+    protected byteSentStats = 0;
+    protected lastDateStats: number = Date.now();
 
     // If there are multiple endpoint options and one fails, this index is incremented to try the next broker url option
-    private lastTriedBrokerEndpoint = 0;
+    protected lastTriedBrokerEndpoint = 0;
 
-    private empyCacheTopic: string;
-    private introspectionTopic: string;
+    protected empyCacheTopic: string;
+    protected introspectionTopic: string;
     // publish introspection (required interfaces)
-    private static baseIntrospection =
+    protected static baseIntrospection =
         "com.corvina.control.sub.Config:0:2;com.corvina.control.pub.Config:0:2;com.corvina.control.pub.DeviceAlarm:2:0;com.corvina.control.sub.DeviceAlarm:1:0";
-    private customIntrospections: string;
-    private applyConfigTopic: string;
-    private consumerPropertiesTopic: string;
-    private actionAlarmTopic: string;
-    private configTopic: string;
-    private availableTagsTopic: string;
+    protected customIntrospections: string;
+    protected applyConfigTopic: string;
+    protected consumerPropertiesTopic: string;
+    protected actionAlarmTopic: string;
+    protected configTopic: string;
+    protected availableTagsTopic: string;
 
-    private lastConfig: string;
+    protected lastConfig: string;
 
-    private tagToTopicMap: Map<TagSource, TagTopicDetails[]>;
-
-    private deviceConfig: DeviceConfig;
-    private axios: LicensesAxiosInstance;
+    protected _deviceConfig: DeviceConfig;
+    protected axios: LicensesAxiosInstance;
 
     constructor() {
         super();
-        this.deviceConfig = {};
+        this._deviceConfig = {};
+    }
+
+    get status(): DeviceStatus {
+        return {
+            msgSent: this.getMsgSent(),
+            bytesSent: this.getBytesSent(),
+            ready: this.isReady(),
+            connected: this.isConnected(),
+            inited: this.isInited(),
+        };
+    }
+
+    get deviceConfig() : DeviceConfig {
+        return this._deviceConfig;
     }
 
     getMsgSent() {
@@ -114,7 +116,7 @@ export class DeviceService extends CorvinaDataInterface {
     }
 
     getDeviceConfig() {
-        return this.deviceConfig;
+        return this._deviceConfig;
     }
 
     getLicenseData() {
@@ -124,7 +126,6 @@ export class DeviceService extends CorvinaDataInterface {
     public reinit(deviceConfig: DeviceConfig, doInit = false): DeviceConfig {
         this.inited = false;
         this.readyToTransmit = false;
-        this.tagToTopicMap = null;
         if (this.mqttClient) {
             this.mqttClient.end();
             this.mqttClient = null;
@@ -134,13 +135,11 @@ export class DeviceService extends CorvinaDataInterface {
         this.licenseData = {} as LicenseData;
         this.customIntrospections = "";
         this.lastConfig = "";
-        Object.assign(this.deviceConfig, deviceConfig);
-        this.axios = new LicensesAxiosInstance(
-            this.deviceConfig.pairingEndpoint,
-            this.deviceConfig.activationKey,
-        );
+        Object.assign(this._deviceConfig, deviceConfig);
+        this._deviceConfig.dynamicTags = new Map<string, TagDesc>();
+        this.axios = new LicensesAxiosInstance(this._deviceConfig.pairingEndpoint, this._deviceConfig.activationKey);
         this.init();
-        return this.deviceConfig;
+        return this._deviceConfig;
     }
 
     public isInited() {
@@ -202,18 +201,14 @@ export class DeviceService extends CorvinaDataInterface {
     }
 
     private serializeMessage(msg: any): any {
-        if (this.deviceConfig.packetFormat == PacketFormatEnum.BSON) {
+        if (this._deviceConfig.packetFormat == PacketFormatEnum.BSON) {
             return BSON.serialize(msg);
         } else {
             return JSON.stringify(msg);
         }
     }
 
-    private connectClient(
-        broker_url: string,
-        key: string,
-        crt: string,
-    ): Promise<any> {
+    private connectClient(broker_url: string, key: string, crt: string): Promise<any> {
         return new Promise((resolve, reject) => {
             const mqttClientOptions: IClientOptions = {};
             mqttClientOptions.rejectUnauthorized = false;
@@ -228,16 +223,9 @@ export class DeviceService extends CorvinaDataInterface {
             this.subscribeChannel(this.actionAlarmTopic);
 
             this.mqttClient.on("connect", async (v) => {
-                l.log(
-                    "Successfully connected to mqtt broker!",
-                    JSON.stringify(v),
-                );
+                l.log("Successfully connected to mqtt broker!", JSON.stringify(v));
 
-                l.debug(
-                    "published introspection " +
-                        DeviceService.baseIntrospection +
-                        this.customIntrospections,
-                );
+                l.debug("published introspection " + DeviceService.baseIntrospection + this.customIntrospections);
                 await this.sendStringMessage(
                     this.introspectionTopic,
                     DeviceService.baseIntrospection + this.customIntrospections,
@@ -249,15 +237,6 @@ export class DeviceService extends CorvinaDataInterface {
                     qos: 2,
                 });
 
-                await this.sendStringMessage(
-                    this.availableTagsTopic,
-                    this.serializeMessage({
-                        v: JSON.stringify(this.deviceConfig.availableTags),
-                        t: Date.now(),
-                    }),
-                    { qos: 2 },
-                );
-
                 l.debug("published configuration");
                 await this.sendStringMessage(
                     this.configTopic,
@@ -268,50 +247,43 @@ export class DeviceService extends CorvinaDataInterface {
                     { qos: 2 },
                 );
 
+                this.throttledUpdateAvailableTags();
+
                 if (this._config) {
-                    this._config.subscribedTopics.forEach(
-                        (topic, topicName) => {
-                            this.subscribeChannel(
-                                this.licenseData.realm +
-                                    "/" +
-                                    this.licenseData.logicalId +
-                                    topicName,
-                            );
-                        },
-                    );
+                    this._config.subscribedTopics.forEach((topic, topicName) => {
+                        this.subscribeChannel(this.licenseData.realm + "/" + this.licenseData.logicalId + topicName);
+                    });
                 }
 
                 this.readyToTransmit = true;
                 l.log("Ready to transmit!");
 
                 DataSimulator.clear();
-                if (this.deviceConfig.simulateTags) {
-                    this.deviceConfig.availableTags.forEach((value) => {
+                if (this._deviceConfig.simulateTags) {
+                    this._deviceConfig.availableTags.forEach((value) => {
+                        if (value.simulation === null) {
+                            return;
+                        }
                         new DataSimulator(
                             value.name,
                             value.type,
                             async (t, v, ts) => {
                                 if (this.isReady()) {
-                                    return this.post([
-                                        { tagName: t, value: v, timestamp: ts },
-                                    ]);
+                                    return this.post([{ tagName: t, value: v, timestamp: ts }]);
                                 }
                                 return false;
                             },
                             value.simulation,
                         );
                     });
-                    if (this.deviceConfig.simulateAlarms) {
-                        this.deviceConfig.availableAlarms.forEach((value) => {
-                            new AlarmSimulator(
-                                value,
-                                async (data: AlarmData) => {
-                                    if (this.isReady()) {
-                                        return this.postAlarm(data);
-                                    }
-                                    return false;
-                                },
-                            );
+                    if (this._deviceConfig.simulateAlarms) {
+                        this._deviceConfig.availableAlarms.forEach((value) => {
+                            new AlarmSimulator(value, async (data: AlarmData) => {
+                                if (this.isReady()) {
+                                    return this.postAlarm(data);
+                                }
+                                return false;
+                            });
                         });
                     }
                 }
@@ -342,22 +314,16 @@ export class DeviceService extends CorvinaDataInterface {
                         l.debug("Received consumer properties!");
                         break;
                     case this.applyConfigTopic.toString():
-                        this.applyConfig(
-                            JSON.parse(BSON.deserialize(message).v),
-                        );
+                        this.applyConfig(JSON.parse(BSON.deserialize(message).v));
                         break;
                     case this.actionAlarmTopic.toString():
                         //console.log( JSON.parse(BSON.deserialize(message).v) )
                         const x: AlarmCommand = BSON.deserialize(message).v;
-                        const sim: AlarmSimulator =
-                            BaseSimulator.simulatorsByTagName.get(
-                                AlarmSimulator.alarmSimulatorMapkey(x.name),
-                            ) as AlarmSimulator;
+                        const sim: AlarmSimulator = BaseSimulator.simulatorsByTagName.get(
+                            AlarmSimulator.alarmSimulatorMapkey(x.name),
+                        ) as AlarmSimulator;
                         if (!sim) {
-                            l.error(
-                                "Trying to perform action on unknown alarm ",
-                                x.name,
-                            );
+                            l.error("Trying to perform action on unknown alarm ", x.name);
                         } else {
                             switch (x.command) {
                                 case "ack":
@@ -371,12 +337,9 @@ export class DeviceService extends CorvinaDataInterface {
                         break;
                     default:
                         const topicKey = topic.slice(
-                            this.licenseData.logicalId.length +
-                                this.licenseData.realm.length +
-                                1,
+                            this.licenseData.logicalId.length + this.licenseData.realm.length + 1,
                         );
-                        const subscriber =
-                            this._config.subscribedTopics.get(topicKey);
+                        const subscriber = this._config.subscribedTopics.get(topicKey);
                         if (subscriber) {
                             this.onWrite(subscriber, BSON.deserialize(message));
                         } else {
@@ -400,16 +363,8 @@ export class DeviceService extends CorvinaDataInterface {
         });
     }
 
-    public async sendStringMessage(
-        channel: string,
-        message: string,
-        options: any = {},
-    ): Promise<any> {
-        l.debug(
-            "Going to publish ",
-            channel /*, message */,
-            this.readyToTransmit,
-        );
+    public async sendStringMessage(channel: string, message: string, options: any = {}): Promise<any> {
+        l.debug("Going to publish ", channel /*, message */, this.readyToTransmit);
 
         return new Promise((resolve, reject) => {
             this.mqttClient.publish(channel, message, options, (err) => {
@@ -423,13 +378,8 @@ export class DeviceService extends CorvinaDataInterface {
         });
     }
 
-    public async sendMessage(
-        topic: string,
-        payload: { t: number; v: unknown },
-        options: any = {},
-    ): Promise<any> {
-        topic =
-            this.licenseData.realm + "/" + this.licenseData.logicalId + topic;
+    public async sendMessage(topic: string, payload: { t: number; v: unknown }, options: any = {}): Promise<any> {
+        topic = this.licenseData.realm + "/" + this.licenseData.logicalId + topic;
         const message = this.serializeMessage(payload);
 
         this.byteSentStats += message.length;
@@ -440,26 +390,13 @@ export class DeviceService extends CorvinaDataInterface {
             this.msgSentStats = 0;
             this.lastDateStats = this.lastDateStats + timeDiff;
         }
-        l.debug(
-            "Going to send to topic ",
-            /* this.tagToTopicMap, */ topic /*, payload*/,
-            this.readyToTransmit,
-        );
+        l.debug("Going to send to topic ", topic, this.readyToTransmit);
         try {
             if (!this.readyToTransmit) {
-                l.warn(
-                    "Cannot publish if not ready to transmit",
-                    this.readyToTransmit,
-                );
+                l.warn("Cannot publish if not ready to transmit", this.readyToTransmit);
                 throw "Cannot publish if not ready to transmit";
             }
-            console.log(
-                ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>",
-                topic,
-                topic.length,
-                message.length,
-                message,
-            );
+            console.log(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", topic, topic.length, message.length, message);
             await this.mqttClient.publish(topic, message);
         } catch (e) {
             l.error("Got error while publishing: ", e);
@@ -476,9 +413,7 @@ export class DeviceService extends CorvinaDataInterface {
             /* Below steps should be cached to disk */
 
             // create identity
-            const csr: CSRData = await this.createCSR(
-                this.licenseData.logicalId,
-            );
+            const csr: CSRData = await this.createCSR(this.licenseData.logicalId);
 
             // take first protocol available. Todo: ensures is valid
             //const mqtt_protocol_name = Object.keys(info.protocols)[0]
@@ -502,10 +437,7 @@ export class DeviceService extends CorvinaDataInterface {
 
             // connect mqtt
             await this.connectClient(
-                this.licenseData.brokerUrls[
-                    this.lastTriedBrokerEndpoint %
-                        this.licenseData.brokerUrls.length
-                ],
+                this.licenseData.brokerUrls[this.lastTriedBrokerEndpoint % this.licenseData.brokerUrls.length],
                 csr.clientKey,
                 crt.client_crt,
             );
@@ -539,25 +471,101 @@ export class DeviceService extends CorvinaDataInterface {
         return this.inited;
     }
 
+    private throttledUpdateAvailableTags = _.throttle(
+        async () => {
+            await this.sendStringMessage(
+                this.availableTagsTopic,
+                this.serializeMessage({
+                    v: JSON.stringify([
+                        ...this._deviceConfig.availableTags.values(),
+                        ...(this._deviceConfig.dynamicTags ? this._deviceConfig.dynamicTags.values() : []),
+                    ]),
+                    t: Date.now(),
+                }),
+                { qos: 2 },
+            );
+        },
+        1000,
+        { leading: false, trailing: true },
+    );
+
+    private jsToCorvinaType(value): string {
+        switch (typeof value) {
+            case "number":
+                return "double";
+            case "string":
+                return "string";
+            case "object":
+                if (_.isArray(value)) {
+                    if (value.length > 0 && typeof value[0] === "string") {
+                        return "stringarray";
+                    }
+                    return "doublearray";
+                } else {
+                    return "struct";
+                }
+                break;
+            default:
+                return undefined;
+        }
+    }
+
+    private recurseNotifyObject = (prefix: string, rootValue: Record<string, any>, ts: number) => {
+        _.mapKeys(rootValue, (value, key) => {
+            const decoratedName = `${prefix}${key}`;
+            if (_.isArray(value) && value.length > 0 && !_.isObject(value[0])) {
+                for (const e in value as Array<any>) {
+                    this.recurseNotifyObject(`${decoratedName}[${e}]`, value[e], ts);
+                }
+            } else if (_.isObject(value)) {
+                this.recurseNotifyObject(decoratedName + ".", value, ts);
+            }
+            if (
+                this._deviceConfig.dynamicTags &&
+                !this._deviceConfig.dynamicTags.has(decoratedName) &&
+                !this._deviceConfig.availableTags.has(decoratedName) &&
+                value != undefined
+            ) {
+                this._deviceConfig.dynamicTags.set(decoratedName, {
+                    name: decoratedName,
+                    type: this.jsToCorvinaType(value), // better implement type detection
+                } as TagDesc);
+                this.throttledUpdateAvailableTags();
+            }
+            super.notifyTag(decoratedName, new State(value, ts));
+        });
+        if (prefix.length > 0) {
+            super.notifyTag(prefix.slice(0, -1), new State(rootValue, ts));
+        }
+    };
+
+    /**
+     *
+     * @param dataPoints
+     * @returns
+     */
     async post(dataPoints: Array<DataPoint>): Promise<boolean> {
         if (!this.readyToTransmit) {
-            l.log(
-                `Cannot process ${JSON.stringify(
-                    dataPoints,
-                )}. Device not ready to transmit!`,
-            );
+            l.log(`Cannot process ${JSON.stringify(dataPoints)}. Device not ready to transmit!`);
             return false;
         }
         if (!this._config) {
-            l.log(
-                `Cannot process ${JSON.stringify(
-                    dataPoints,
-                )}. Device is not configured yet!`,
-            );
+            l.log(`Cannot process ${JSON.stringify(dataPoints)}. Device is not configured yet!`);
             return false;
         }
         for (const dp of dataPoints) {
-            super.notifyTag(dp.tagName, new State(dp.value, dp.timestamp));
+            if (dp.tagName == undefined) {
+                assert(_.isObject(dp.value));
+                this.recurseNotifyObject("", dp.value, dp.timestamp);
+            } else {
+                // else notify single components
+                if (_.isObject(dp.value)) {
+                    this.recurseNotifyObject(dp.tagName + ".", dp.value, dp.timestamp);
+                } else {
+                    // try to notify whole object
+                    super.notifyTag(dp.tagName as string, new State(dp.value, dp.timestamp));
+                }
+            }
         }
 
         return true;
@@ -565,10 +573,7 @@ export class DeviceService extends CorvinaDataInterface {
 
     async postAlarm(alarmData: AlarmData): Promise<boolean> {
         const payload = this.serializeMessage({ t: Date.now(), v: alarmData });
-        l.debug(
-            "Going to send alarm ",
-            { t: Date.now(), v: alarmData } /*, payload */,
-        );
+        l.debug("Going to send alarm ", { t: Date.now(), v: alarmData } /*, payload */);
         await this.mqttClient.publish(
             `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.DeviceAlarm/a`,
             payload,

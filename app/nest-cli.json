@@ -1,6 +1,5 @@
 {
   "collection": "@nestjs/schematics",
-  "sourceRoot": "src",
   "compilerOptions": {
     "plugins": [
       {
@@ -21,6 +20,17 @@
       "compilerOptions": {
         "tsConfigPath": "libs/device-client/tsconfig.lib.json"
       }
+    },
+    "example": {
+      "type": "application",
+      "root": "apps/example",
+      "entryFile": "main",
+      "sourceRoot": "apps/example/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/example/tsconfig.app.json"
+      }
     }
-  }
+  },
+  "monorepo": true,
+  "root": "apps/nest-typescript-starter"
 }

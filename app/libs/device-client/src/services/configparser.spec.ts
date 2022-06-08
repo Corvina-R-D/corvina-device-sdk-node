@@ -1,12 +1,5 @@
-import parseDeviceConfig, {
-    DeviceConfiguration,
-    DeviceConfigurationData,
-    indexTemplateApply,
-} from "./configparser";
-import {
-    AggregatedMessagePublisher,
-    MessagePublisher,
-} from "./messagepublisher";
+import parseDeviceConfig, { DeviceConfiguration, DeviceConfigurationData, indexTemplateApply } from "./configparser";
+import { AggregatedMessagePublisher, MessagePublisher } from "./messagepublisher";
 import { Logger as l } from "@nestjs/common";
 
 const simpleConfig = {
@@ -86,8 +79,7 @@ const simpleConfig = {
                         instanceOf: "_0",
                     },
                     mapping: {
-                        device_endpoint:
-                            "/com.exor.SfAIxYe7kU/2e6dui08pzrch2w1/0/PositionNow",
+                        device_endpoint: "/com.exor.SfAIxYe7kU/2e6dui08pzrch2w1/0/PositionNow",
                     },
                 },
                 struct_a: {
@@ -103,8 +95,7 @@ const simpleConfig = {
                         instanceOf: "_0",
                     },
                     mapping: {
-                        device_endpoint:
-                            "/com.exor.SfAIxYe7kU/2e6dui08pzrch2w1/0/struct_a",
+                        device_endpoint: "/com.exor.SfAIxYe7kU/2e6dui08pzrch2w1/0/struct_a",
                     },
                 },
                 struct_b: {
@@ -120,8 +111,7 @@ const simpleConfig = {
                         instanceOf: "_0",
                     },
                     mapping: {
-                        device_endpoint:
-                            "/com.exor.SfAIxYe7kU/2e6dui08pzrch2w1/0/struct_b",
+                        device_endpoint: "/com.exor.SfAIxYe7kU/2e6dui08pzrch2w1/0/struct_b",
                     },
                 },
                 Tag1: {
@@ -137,8 +127,7 @@ const simpleConfig = {
                         instanceOf: "_0",
                     },
                     mapping: {
-                        device_endpoint:
-                            "/com.exor.SfAIxYe7kU/2e6dui08pzrch2w1/0/Tag1",
+                        device_endpoint: "/com.exor.SfAIxYe7kU/2e6dui08pzrch2w1/0/Tag1",
                     },
                 },
                 Tag2: {
@@ -154,8 +143,7 @@ const simpleConfig = {
                         instanceOf: "_0",
                     },
                     mapping: {
-                        device_endpoint:
-                            "/com.exor.SfAIxYe7kU/2e6dui08pzrch2w1/0/Tag2",
+                        device_endpoint: "/com.exor.SfAIxYe7kU/2e6dui08pzrch2w1/0/Tag2",
                     },
                 },
                 Tag3: {
@@ -171,8 +159,7 @@ const simpleConfig = {
                         instanceOf: "_0",
                     },
                     mapping: {
-                        device_endpoint:
-                            "/com.exor.SfAIxYe7kU/2e6dui08pzrch2w1/0/Tag3",
+                        device_endpoint: "/com.exor.SfAIxYe7kU/2e6dui08pzrch2w1/0/Tag3",
                     },
                 },
             },
@@ -182,38 +169,20 @@ const simpleConfig = {
 
 describe("Device config parser", () => {
     it("should apply array indexes", () => {
-        expect(indexTemplateApply("/tag[${0},${1}]", [23, 17])).toBe(
-            "/tag[23,17]",
-        );
-        expect(indexTemplateApply("/tag[$${0},${1}]", [23, 17])).toBe(
-            "/tag[$23,17]",
-        );
-        expect(indexTemplateApply("/tag[$}${0},${1}]", [23, 17])).toBe(
-            "/tag[$}23,17]",
-        );
-        expect(indexTemplateApply("/tag[{}${0},${1}]", [23, 17])).toBe(
-            "/tag[{}23,17]",
-        );
-        expect(indexTemplateApply("/tag[\\${0},${1}]", [23, 17])).toBe(
-            "/tag[${0},17]",
-        );
-        expect(indexTemplateApply("/tag[\\\\\\${0},${1}]", [23, 17])).toBe(
-            "/tag[\\${0},17]",
-        );
-        expect(indexTemplateApply("/tag[\\\\${0},${1}]", [23, 17])).toBe(
-            "/tag[\\23,17]",
-        );
-        expect(indexTemplateApply("/tag[${abc},${0}]", [23, 17])).toBe(
-            "/tag[,23]",
-        );
+        expect(indexTemplateApply("/tag[${0},${1}]", [23, 17])).toBe("/tag[23,17]");
+        expect(indexTemplateApply("/tag[$${0},${1}]", [23, 17])).toBe("/tag[$23,17]");
+        expect(indexTemplateApply("/tag[$}${0},${1}]", [23, 17])).toBe("/tag[$}23,17]");
+        expect(indexTemplateApply("/tag[{}${0},${1}]", [23, 17])).toBe("/tag[{}23,17]");
+        expect(indexTemplateApply("/tag[\\${0},${1}]", [23, 17])).toBe("/tag[${0},17]");
+        expect(indexTemplateApply("/tag[\\\\\\${0},${1}]", [23, 17])).toBe("/tag[\\${0},17]");
+        expect(indexTemplateApply("/tag[\\\\${0},${1}]", [23, 17])).toBe("/tag[\\23,17]");
+        expect(indexTemplateApply("/tag[${abc},${0}]", [23, 17])).toBe("/tag[,23]");
         expect(indexTemplateApply("/tag${0", [23, 17])).toBe("/tag");
         expect(indexTemplateApply("/tag${1}", [23, 17])).toBe("/tag17");
     });
 
     it("parse config", () => {
-        const result: DeviceConfiguration = parseDeviceConfig(
-            simpleConfig as any,
-        );
+        const result: DeviceConfiguration = parseDeviceConfig(simpleConfig as any);
         expect(result.interfaceNames).toEqual(["com.exor.SfAIxYe7kU:1:0"]);
         expect([...result.namedPolicies.keys()]).toEqual(["_0"]);
         expect(result.tagPublishers.size).toEqual(6);
@@ -240,8 +209,7 @@ describe("Device config parser", () => {
                                         type: "integer",
                                         datalink: { source: "/a/${0}" },
                                         mapping: {
-                                            device_endpoint:
-                                                "/com.exor.a1244/mount/${0}/a",
+                                            device_endpoint: "/com.exor.a1244/mount/${0}/a",
                                         },
                                         sendPolicy: {
                                             triggers: [
@@ -259,15 +227,10 @@ describe("Device config parser", () => {
                 },
             },
         };
-        const result: DeviceConfiguration = parseDeviceConfig(
-            datamodel as DeviceConfigurationData,
-        );
+        const result: DeviceConfiguration = parseDeviceConfig(datamodel as DeviceConfigurationData);
         expect(result.tagPublishers.size).toEqual(10);
         expect(result.tagPublishers.get("/a/5").size).toEqual(1);
-        const pub: MessagePublisher = result.tagPublishers
-            .get("/a/5")
-            .values()
-            .next().value;
+        const pub: MessagePublisher = result.tagPublishers.get("/a/5").values().next().value;
         expect(pub.topic).toBe("/com.exor.a1244/mount/5/a");
         expect(pub.topicType).toBe("integer");
     });
@@ -318,9 +281,7 @@ describe("Device config parser", () => {
             },
         };
 
-        let result: DeviceConfiguration = parseDeviceConfig(
-            datamodel as DeviceConfigurationData,
-        );
+        let result: DeviceConfiguration = parseDeviceConfig(datamodel as DeviceConfigurationData);
         expect(result.tagPublishers.size).toEqual(1);
         expect(result.tagPublishers.get("/wholeStruct").size).toBe(1);
 
@@ -341,8 +302,7 @@ describe("Device config parser", () => {
                                     type: "integer",
                                     datalink: { source: "/b" },
                                     mapping: {
-                                        device_endpoint:
-                                            "/com.exor.a1244/mount/0/a",
+                                        device_endpoint: "/com.exor.a1244/mount/0/a",
                                     },
                                 },
                             },
@@ -368,16 +328,10 @@ describe("Device config parser", () => {
         expect(result.tagPublishers.get("/b").size).toBe(1);
 
         // expect(result.tagPublishers.get("/wholeStruct")).toEqual(result.tagPublishers.get("/b"));
-        expect(
-            (
-                result.tagPublishers.get("/b").values().next()
-                    .value as AggregatedMessagePublisher
-            ).fields.length,
-        ).toBe(1);
-        const field = (
-            result.tagPublishers.get("/b").values().next()
-                .value as AggregatedMessagePublisher
-        ).fields[0];
+        expect((result.tagPublishers.get("/b").values().next().value as AggregatedMessagePublisher).fields.length).toBe(
+            1,
+        );
+        const field = (result.tagPublishers.get("/b").values().next().value as AggregatedMessagePublisher).fields[0];
         expect(field.tagName).toBe("/b");
         expect(field.fieldName).toBe("a");
         expect(field.type).toBe("integer");
@@ -401,8 +355,7 @@ describe("Device config parser", () => {
                                     type: "integer",
                                     datalink: { source: "/b" },
                                     mapping: {
-                                        device_endpoint:
-                                            "/com.exor.a1244/mount/0/a",
+                                        device_endpoint: "/com.exor.a1244/mount/0/a",
                                     },
                                 },
                             },
@@ -441,8 +394,7 @@ describe("Device config parser", () => {
                                     type: "integer",
                                     datalink: { source: "/wholeStruct" },
                                     mapping: {
-                                        device_endpoint:
-                                            "/com.exor.a1244/mount/${0}",
+                                        device_endpoint: "/com.exor.a1244/mount/${0}",
                                     },
                                 },
                             },

@@ -65,13 +65,7 @@ export abstract class MessagePublisherPolicy {
     /*! Set the tagname is currently empty */
     public setDefaultTagName(tagName: string) {}
     /*! Set the tagname of a field */
-    public setFieldTagName({
-        fieldName,
-        tagName,
-    }: {
-        fieldName: string;
-        tagName: string;
-    }) {}
+    public setFieldTagName({ fieldName, tagName }: { fieldName: string; tagName: string }) {}
 
     /*! Returns a multi tag version, for instance if the type is qualitygood, returns
      * a AND of each single tag */
@@ -100,9 +94,7 @@ export abstract class MessagePublisher_OperatorPolicy extends MessagePublisherPo
 
     public referencedTags(): string[] {
         const referencedTags = [];
-        this._operands.forEach((o) =>
-            referencedTags.push(...o.referencedTags()),
-        );
+        this._operands.forEach((o) => referencedTags.push(...o.referencedTags()));
         return referencedTags;
     }
 
@@ -110,16 +102,8 @@ export abstract class MessagePublisher_OperatorPolicy extends MessagePublisherPo
         this._operands.forEach((o) => o.setDefaultTagName(tagName));
     }
 
-    public setFieldTagName({
-        fieldName,
-        tagName,
-    }: {
-        fieldName: string;
-        tagName: string;
-    }) {
-        this._operands.forEach((o) =>
-            o.setFieldTagName({ fieldName, tagName }),
-        );
+    public setFieldTagName({ fieldName, tagName }: { fieldName: string; tagName: string }) {
+        this._operands.forEach((o) => o.setFieldTagName({ fieldName, tagName }));
     }
 
     public updateState({
@@ -135,9 +119,7 @@ export abstract class MessagePublisher_OperatorPolicy extends MessagePublisherPo
     }
 
     public multiTagVersion(tags: string[]) {
-        const clone: MessagePublisher_OperatorPolicy = <
-            MessagePublisher_OperatorPolicy
-        >this.clone();
+        const clone: MessagePublisher_OperatorPolicy = <MessagePublisher_OperatorPolicy>this.clone();
         clone._operands = clone._operands.map((o) => o.multiTagVersion(tags));
         return clone;
     }
@@ -151,11 +133,7 @@ export abstract class MessagePublisher_OperatorPolicy extends MessagePublisherPo
     public toString(): string {
         let ret: string;
         for (let i = 0; i < this._operands.length; i++) {
-            ret +=
-                i == 0
-                    ? "("
-                    : ` ${this.operatorKeyword()} ` +
-                      `${this._operands[i].toString()})`;
+            ret += i == 0 ? "(" : ` ${this.operatorKeyword()} ` + `${this._operands[i].toString()})`;
         }
         return ret;
     }
@@ -263,8 +241,7 @@ abstract class MessagePublisher_TagBasedPolicy extends MessagePublisherPolicy {
     /*! Return all tag referenced by this policy */
     public referencedTags(): string[] {
         const referencedTags = [];
-        if (this._tagName && this._tagName.length !== 0)
-            referencedTags.push(this._tagName);
+        if (this._tagName && this._tagName.length !== 0) referencedTags.push(this._tagName);
         return referencedTags;
     }
 
@@ -273,8 +250,7 @@ abstract class MessagePublisher_TagBasedPolicy extends MessagePublisherPolicy {
             // default tag name is already set (setDefaultTagName would be ineffective and will result in many duplicates)
             return this.clone();
         }
-        const multiTagVersion: MessagePublisher_OperatorPolicy =
-            this.defaultMultitagOperator();
+        const multiTagVersion: MessagePublisher_OperatorPolicy = this.defaultMultitagOperator();
         tags.forEach((t, i) => {
             multiTagVersion.addOperand(this);
             multiTagVersion.operand(i).setDefaultTagName(t);
@@ -296,13 +272,7 @@ abstract class MessagePublisher_TagBasedPolicy extends MessagePublisherPolicy {
 export class MessagePublisher_QualityPolicy extends MessagePublisher_TagBasedPolicy {
     protected _expectGood: boolean;
 
-    constructor({
-        tagName,
-        expectGood,
-    }: {
-        tagName: string;
-        expectGood: boolean;
-    }) {
+    constructor({ tagName, expectGood }: { tagName: string; expectGood: boolean }) {
         super(tagName);
         this._expectGood = expectGood;
     }
@@ -316,33 +286,22 @@ export class MessagePublisher_QualityPolicy extends MessagePublisher_TagBasedPol
         newState: State;
         currentTime: StateTS;
     }): StateTS {
-        if (
-            this._tagName &&
-            this._tagName.length != 0 &&
-            tagName != this._tagName
-        ) {
+        if (this._tagName && this._tagName.length != 0 && tagName != this._tagName) {
             // not for me
             return this._nextTime;
         }
 
-        this._nextTime =
-            this._expectGood == (newState.quality == Quality.GOOD)
-                ? 0
-                : INVALID_STATE_TS;
+        this._nextTime = this._expectGood == (newState.quality == Quality.GOOD) ? 0 : INVALID_STATE_TS;
         //RETAILMSG(1, (TEXT("after quality %lld\n"), m_nextTime));
         return this._nextTime;
     }
 
     toString() {
-        return `${
-            this._expectGood ? "qualitygood:" : "qualitybad:"
-        }${super.toString()}`;
+        return `${this._expectGood ? "qualitygood:" : "qualitybad:"}${super.toString()}`;
     }
 
     defaultMultitagOperator() {
-        return this._expectGood
-            ? new MessagePublisher_AndPolicy()
-            : new MessagePublisher_OrPolicy();
+        return this._expectGood ? new MessagePublisher_AndPolicy() : new MessagePublisher_OrPolicy();
     }
 }
 
@@ -394,52 +353,33 @@ export class MessagePublisher_OnChangedPolicy extends MessagePublisher_TagBasedP
         newState: State;
         currentTime: StateTS;
     }): StateTS {
-        if (
-            this._tagName &&
-            this._tagName.length != 0 &&
-            tagName != this._tagName
-        ) {
+        if (this._tagName && this._tagName.length != 0 && tagName != this._tagName) {
             // not for me!
             return this._nextTime;
         }
 
         let triggered = false;
-        if (
-            this._changeMask & ChangeMask.ValueChange &&
-            newState.quality == Quality.GOOD
-        ) {
+        if (this._changeMask & ChangeMask.ValueChange && newState.quality == Quality.GOOD) {
             if (_.isArray(newState.value)) {
                 triggered =
                     newState.value.length != this._lastState.value.length ||
                     newState.value.reduce((acc, v, i) => {
-                        return (
-                            triggered ||
-                            this.isOutOfDeadband(v, this._lastState[i])
-                        );
+                        return triggered || this.isOutOfDeadband(v, this._lastState[i]);
                     }, triggered);
             } else {
-                triggered = this.isOutOfDeadband(
-                    this._lastState.value,
-                    newState.value,
-                );
+                triggered = this.isOutOfDeadband(this._lastState.value, newState.value);
             }
             if (triggered) {
                 this._lastState.value = newState.value;
             }
         }
 
-        if (
-            this._changeMask & ChangeMask.QualityChange &&
-            newState.quality != this._lastState.quality
-        ) {
+        if (this._changeMask & ChangeMask.QualityChange && newState.quality != this._lastState.quality) {
             this._lastState.value = newState.value;
             triggered = true;
         }
 
-        if (
-            this._changeMask & ChangeMask.SourceTimestampChange &&
-            newState.timestamp != this._lastState.timestamp
-        ) {
+        if (this._changeMask & ChangeMask.SourceTimestampChange && newState.timestamp != this._lastState.timestamp) {
             this._lastState.timestamp = newState.timestamp;
             triggered = true;
         }
@@ -466,7 +406,7 @@ export class MessagePublisher_OnChangedPolicy extends MessagePublisher_TagBasedP
 
     protected isOutOfDeadband(v1: any, v2: any): boolean {
         if (!_.isNumber(v1)) {
-            return v1 != v2;
+            return !_.isEqual(v1, v2);
         }
         const delta = Math.abs(v1 - v2);
         if (!this._isPercent) {
@@ -513,8 +453,7 @@ export class MessagePublisher_TimerPolicy extends MessagePublisherPolicy {
 
     /*! Rearm to next valid interval after currentTime */
     public rearm(currentTime: StateTS): StateTS {
-        this._nextTime =
-            (1 + Math.floor(currentTime / this._interval)) * this._interval;
+        this._nextTime = (1 + Math.floor(currentTime / this._interval)) * this._interval;
         return this._nextTime;
     }
 
@@ -531,17 +470,7 @@ export class MessagePublisher_AnalogBandPolicy extends MessagePublisher_TagBased
     protected _max: number;
     protected _inside: boolean;
 
-    constructor({
-        tagName,
-        min,
-        max,
-        inside,
-    }: {
-        tagName?: string;
-        min?: number;
-        max?: number;
-        inside?: boolean;
-    }) {
+    constructor({ tagName, min, max, inside }: { tagName?: string; min?: number; max?: number; inside?: boolean }) {
         super(tagName);
         this._inside = inside;
         this._min = min;
@@ -560,11 +489,7 @@ export class MessagePublisher_AnalogBandPolicy extends MessagePublisher_TagBased
         newState: State;
         currentTime: StateTS;
     }): StateTS {
-        if (
-            this._tagName &&
-            this._tagName.length != 0 &&
-            tagName != this._tagName
-        ) {
+        if (this._tagName && this._tagName.length != 0 && tagName != this._tagName) {
             // not for me
             return this._nextTime;
         }
@@ -585,9 +510,7 @@ export class MessagePublisher_AnalogBandPolicy extends MessagePublisher_TagBased
     }
 
     toString() {
-        return `${this._inside ? "inband:" : "outband:"}${this._min},${
-            this._max
-        },${super.toString()}`;
+        return `${this._inside ? "inband:" : "outband:"}${this._min},${this._max},${super.toString()}`;
     }
 
     defaultMultitagOperator() {
@@ -636,13 +559,7 @@ export class MessagePublisher_OnFieldChangedPolicy extends MessagePublisher_OnCh
         return this._fieldName;
     }
 
-    setFieldTagName({
-        fieldName,
-        tagName,
-    }: {
-        fieldName: string;
-        tagName: string;
-    }) {
+    setFieldTagName({ fieldName, tagName }: { fieldName: string; tagName: string }) {
         if (this._fieldName == fieldName) {
             this._tagName = tagName;
         }
@@ -657,9 +574,7 @@ export enum LevelMode {
 
 type LevelType = string | number;
 /*! Simple on change policy */
-export class MessagePublisher_OnLevelPolicy<
-    LevelType,
-> extends MessagePublisher_TagBasedPolicy {
+export class MessagePublisher_OnLevelPolicy<LevelType> extends MessagePublisher_TagBasedPolicy {
     protected _lastState: State;
     protected _skipFirstNChanges: number;
     protected _min: number;
@@ -692,10 +607,8 @@ export class MessagePublisher_OnLevelPolicy<
     }) {
         super(tagName);
         if (typeof level == "number") {
-            this._min =
-                level - (isPercent ? (level * deadband) / 100 : deadband);
-            this._max =
-                level + (isPercent ? (level * deadband) / 100 : deadband);
+            this._min = level - (isPercent ? (level * deadband) / 100 : deadband);
+            this._max = level + (isPercent ? (level * deadband) / 100 : deadband);
         }
         this._level = level;
         this._mode = levelMode;
@@ -720,11 +633,7 @@ export class MessagePublisher_OnLevelPolicy<
         newState: State;
         currentTime: StateTS;
     }): StateTS {
-        if (
-            this._tagName &&
-            this._tagName.length != 0 &&
-            tagName != this._tagName
-        ) {
+        if (this._tagName && this._tagName.length != 0 && tagName != this._tagName) {
             // not for me!
             return this._nextTime;
         }
@@ -780,9 +689,7 @@ export class MessagePublisher_OnLevelPolicy<
 }
 
 /*! Special kind of policy for field of a structure (need tagName resolution) */
-export class MessagePublisher_OnFieldLevelPolicy<
-    LevelType,
-> extends MessagePublisher_OnLevelPolicy<LevelType> {
+export class MessagePublisher_OnFieldLevelPolicy<LevelType> extends MessagePublisher_OnLevelPolicy<LevelType> {
     protected _fieldName: string;
 
     constructor({
@@ -819,13 +726,7 @@ export class MessagePublisher_OnFieldLevelPolicy<
         return this._fieldName;
     }
 
-    setFieldTagName({
-        fieldName,
-        tagName,
-    }: {
-        fieldName: string;
-        tagName: string;
-    }) {
+    setFieldTagName({ fieldName, tagName }: { fieldName: string; tagName: string }) {
         if (this._fieldName == fieldName) {
             this._tagName = tagName;
         }

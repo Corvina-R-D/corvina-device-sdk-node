@@ -1,9 +1,5 @@
 import { castCorvinaType } from "../common/types";
-import {
-    MessagePublisherPolicy,
-    State,
-    StateTS,
-} from "./messagepublisherpolicies";
+import { MessagePublisherPolicy, State, StateTS } from "./messagepublisherpolicies";
 import { MessageSender } from "./messagesender";
 
 /*! Publish data according to new data and installed policies */
@@ -20,15 +16,7 @@ export class MessagePublisher {
     protected _lastPublishedStateVersion = 0;
     private _messageSender: MessageSender;
 
-    constructor({
-        sourceTag,
-        topic,
-        topicType,
-    }: {
-        sourceTag: string;
-        topic: string;
-        topicType: string;
-    }) {
+    constructor({ sourceTag, topic, topicType }: { sourceTag: string; topic: string; topicType: string }) {
         this._tagName = sourceTag;
         this._topic = topic;
         this._topicType = topicType;
@@ -48,21 +36,11 @@ export class MessagePublisher {
     }
 
     /*! Next publish event will occur in specified number of ms */
-    update({
-        tagName,
-        newState,
-        currentTime,
-    }: {
-        tagName: string;
-        newState: State;
-        currentTime: StateTS;
-    }): StateTS {
+    update({ tagName, newState, currentTime }: { tagName: string; newState: State; currentTime: StateTS }): StateTS {
+        this._lastStateVersion++; // keeps track of state changes
         if (tagName == this._tagName) {
             this._stateToPublish.timestamp = newState.timestamp;
-            this._stateToPublish.value = castCorvinaType(
-                newState.value,
-                this._topicType,
-            );
+            this._stateToPublish.value = castCorvinaType(newState.value, this._topicType);
         }
         if (this._policy) {
             this._nextTime = this._policy.updateState({
@@ -95,10 +73,15 @@ export class MessagePublisher {
 
     /* Derived class must reimplement this function to actually publish value */
     publish(currentTime: StateTS, messageSender: MessageSender) {
+        // If there are no updates in the state from previous publish (we are polling a constant value from the cloud), use current timestamp
+        // Otherwise try to use source timestamp
         const ts =
-            this._lastPublishedStateVersion == this._lastStateVersion
-                ? Date.now()
-                : this._stateToPublish.timestamp;
+            this._lastPublishedStateVersion == this._lastStateVersion ? Date.now() : this._stateToPublish.timestamp;
+
+        if (!ts) {
+            // never received an update => don't send anything
+            return;
+        }
 
         messageSender.sendMessage(this._topic, {
             t: ts,
@@ -137,15 +120,7 @@ export class AggregatedMessagePublisher extends MessagePublisher {
         this._fields = [];
     }
 
-    addField({
-        tagName,
-        fieldName,
-        type,
-    }: {
-        tagName: string;
-        fieldName: string;
-        type: string;
-    }) {
+    addField({ tagName, fieldName, type }: { tagName: string; fieldName: string; type: string }) {
         this._fields.push({
             tagName,
             fieldName,
@@ -155,42 +130,30 @@ export class AggregatedMessagePublisher extends MessagePublisher {
         this._recomputePolicy = true;
     }
 
-    update({
-        tagName,
-        newState,
-        currentTime,
-    }: {
-        tagName: string;
-        newState: State;
-        currentTime: StateTS;
-    }): StateTS {
+    update({ tagName, newState, currentTime }: { tagName: string; newState: State; currentTime: StateTS }): StateTS {
         if (this._policy && this._recomputePolicy) {
             this._fields.forEach((f) => {
                 if (f.tagName == tagName) {
-                    f.lastValueToPublish = castCorvinaType(
-                        newState.value,
-                        f.type,
-                    );
+                    f.lastValueToPublish = castCorvinaType(newState.value, f.type);
+                    // ensure current timestamp is always updated
+                    this._stateToPublish.timestamp = newState.timestamp;
                 }
                 this._policy.setFieldTagName({
                     fieldName: f.fieldName,
                     tagName: f.tagName,
                 });
             });
-            this._policy = this._policy.multiTagVersion(
-                this._fields.map((f) => f.tagName),
-            );
+            this._policy = this._policy.multiTagVersion(this._fields.map((f) => f.tagName));
         }
+
         return super.update({ tagName, newState, currentTime });
     }
 
     publish(currentTime: StateTS, messageSender: MessageSender) {
         const ts =
-            this._lastPublishedStateVersion == this._lastStateVersion
-                ? Date.now()
-                : this._stateToPublish.timestamp;
+            this._lastPublishedStateVersion == this._lastStateVersion ? Date.now() : this._stateToPublish.timestamp;
 
-        const x = {};
+        const x = this._stateToPublish.value || {};
         this._fields.forEach((f) => {
             x[f.fieldName] = f.lastValueToPublish;
         });
@@ -202,9 +165,9 @@ export class AggregatedMessagePublisher extends MessagePublisher {
     }
 
     toString(): string {
-        return `AggregatedMessagePublisher@${this._tagName} => ${
-            this._topic
-        } ( ${this._policy ? this._policy.toString() : "NULL"})`;
+        return `AggregatedMessagePublisher@${this._tagName} => ${this._topic} ( ${
+            this._policy ? this._policy.toString() : "NULL"
+        })`;
     }
 
     get fields() {
