@@ -196,7 +196,7 @@ export class DeviceService extends CorvinaDataInterface {
         this.lastConfig = config;
         setTimeout(async () => {
             await this.mqttClient.end();
-            await this.mqttClient.reconnect();
+            setTimeout( async ()=> await this.mqttClient.reconnect(), 1000);
         }, 0);
     }
 
@@ -473,17 +473,19 @@ export class DeviceService extends CorvinaDataInterface {
 
     private throttledUpdateAvailableTags = _.throttle(
         async () => {
-            await this.sendStringMessage(
-                this.availableTagsTopic,
-                this.serializeMessage({
-                    v: JSON.stringify([
-                        ...this._deviceConfig.availableTags.values(),
-                        ...(this._deviceConfig.dynamicTags ? this._deviceConfig.dynamicTags.values() : []),
-                    ]),
-                    t: Date.now(),
-                }),
-                { qos: 2 },
-            );
+            try{
+                await this.sendStringMessage(
+                    this.availableTagsTopic,
+                    this.serializeMessage({
+                        v: JSON.stringify([
+                            ...this._deviceConfig.availableTags.values(),
+                            ...(this._deviceConfig.dynamicTags ? this._deviceConfig.dynamicTags.values() : []),
+                        ]),
+                        t: Date.now(),
+                    }),
+                    { qos: 2 },
+                );
+            }catch(e){}
         },
         1000,
         { leading: false, trailing: true },

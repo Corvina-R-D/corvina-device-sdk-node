@@ -14,6 +14,7 @@ import {
 //import ease from 'd3-ease'
 const ease = require("d3-ease");
 import _ from "lodash";
+import { clearInterval } from "timers";
 
 enum StepSimulationState {
     STABLE,
@@ -74,6 +75,7 @@ export class BaseSimulator implements AbstractSimulator {
 
     static inited = false;
     static sorted = false;
+    static intervalID = null;
 
     static filterDuplications: boolean;
     static simulationMs: number;
@@ -99,9 +101,8 @@ export class BaseSimulator implements AbstractSimulator {
                 return 1000;
             }
         })();
-
         if (!BaseSimulator.inited) {
-            setInterval(() => {
+            BaseSimulator.intervalID = setInterval(() => {
                 if (!BaseSimulator.inited || !BaseSimulator.sorted) {
                     let idx = BaseSimulator.simulatorsByTagName.size;
                     BaseSimulator.simulators = new Array(idx);
@@ -504,6 +505,9 @@ export class DataSimulator extends BaseSimulator {
 
     static clear() {
         DataSimulator.sorted = false;
+        BaseSimulator.inited = false;
+        BaseSimulator.simulatorsByTagName && BaseSimulator.simulatorsByTagName.clear();
+        clearInterval( BaseSimulator.intervalID );
     }
 }
 
