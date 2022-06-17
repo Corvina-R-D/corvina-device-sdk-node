@@ -99,7 +99,7 @@ export class DeviceService extends CorvinaDataInterface {
         };
     }
 
-    get deviceConfig() : DeviceConfig {
+    get deviceConfig(): DeviceConfig {
         return this._deviceConfig;
     }
 
@@ -196,7 +196,7 @@ export class DeviceService extends CorvinaDataInterface {
         this.lastConfig = config;
         setTimeout(async () => {
             await this.mqttClient.end();
-            setTimeout( async ()=> await this.mqttClient.reconnect(), 1000);
+            setTimeout(async () => await this.mqttClient.reconnect(), 1000);
         }, 0);
     }
 
@@ -214,8 +214,9 @@ export class DeviceService extends CorvinaDataInterface {
             mqttClientOptions.rejectUnauthorized = false;
             mqttClientOptions.key = key;
             mqttClientOptions.cert = crt;
-            mqttClientOptions.clean = false;
+            mqttClientOptions.clean = true;
             mqttClientOptions.clientId = x509.parseCert(crt).subject.commonName;
+            mqttClientOptions.reconnectPeriod = 5000000;
             this.mqttClient = mqtt.connect(broker_url, mqttClientOptions);
 
             this.subscribeChannel(this.consumerPropertiesTopic);
@@ -396,7 +397,7 @@ export class DeviceService extends CorvinaDataInterface {
                 l.warn("Cannot publish if not ready to transmit", this.readyToTransmit);
                 throw "Cannot publish if not ready to transmit";
             }
-            console.log(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", topic, topic.length, message.length, message);
+            console.debug(">>>>", topic, payload, topic.length, message.length, message);
             await this.mqttClient.publish(topic, message);
         } catch (e) {
             l.error("Got error while publishing: ", e);
@@ -473,7 +474,7 @@ export class DeviceService extends CorvinaDataInterface {
 
     private throttledUpdateAvailableTags = _.throttle(
         async () => {
-            try{
+            try {
                 await this.sendStringMessage(
                     this.availableTagsTopic,
                     this.serializeMessage({
@@ -485,7 +486,7 @@ export class DeviceService extends CorvinaDataInterface {
                     }),
                     { qos: 2 },
                 );
-            }catch(e){}
+            } catch (e) {}
         },
         1000,
         { leading: false, trailing: true },

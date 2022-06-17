@@ -105,6 +105,12 @@ export enum PacketFormatEnum {
 }
 
 export function castCorvinaType(value: any, topicType: string) {
+    if (value == undefined) {
+        return undefined;
+    }
+    if (value == null) {
+        return null;
+    }
     switch (topicType) {
         case "integer":
             return ~~value;
