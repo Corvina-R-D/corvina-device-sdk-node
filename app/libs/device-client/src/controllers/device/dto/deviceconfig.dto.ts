@@ -62,7 +62,7 @@ export class AlarmDescDTO implements AlarmDesc {
     simulation: SimulationDescDTO;
 }
 
-export class DeviceConfigDTO implements DeviceConfig {
+export class DeviceConfigDTO {
     activationKey?: string;
     pairingEndpoint?: string;
     availableTagsFile?: string; // json array string
