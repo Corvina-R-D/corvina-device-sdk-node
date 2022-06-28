@@ -1,5 +1,5 @@
 import { Controller, Get } from "@nestjs/common";
-import { DeviceHealthIndicator } from "../../../../libs/device-client/src/services/device.health";
+import { DeviceHealthIndicator } from "../services/device.health";
 import { HealthCheck, HealthCheckService } from "@nestjs/terminus";
 
 @Controller("health")

@@ -1,6 +1,5 @@
 import parseDeviceConfig, { DeviceConfiguration, DeviceConfigurationData, indexTemplateApply } from "./configparser";
 import { AggregatedMessagePublisher, MessagePublisher } from "./messagepublisher";
-import { Logger as l } from "@nestjs/common";
 
 const simpleConfig = {
     type: "datamodel",

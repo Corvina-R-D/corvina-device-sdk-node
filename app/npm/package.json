@@ -35,13 +35,10 @@
     "url": "https://github.com/corvina/corvina-device-sdk"
   },
   "peerDependencies": {
-    "@nestjs/axios": "^0.0.7",
-    "@nestjs/common": "^8.1.1",
+    "@nestjs/common": "^8.1.1"
+  },
+  "dependencies": {
     "@nestjs/config": "^2.0.0",
-    "@nestjs/core": "^8.1.1",
-    "@nestjs/passport": "^8.2.1",
-    "@nestjs/platform-express": "^8.1.1",
-    "@nestjs/swagger": "^5.2.1",
     "@nestjs/terminus": "^8.0.6",
     "bson": "^4.6.2",
     "d3-ease": "^1.0.5",

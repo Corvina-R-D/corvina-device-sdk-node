@@ -1,4 +1,4 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller } from "@nestjs/common";
 import { DeviceRunnerService } from "../../../../libs/device-client/src/services/devicerunner.service";
 
 @Controller()

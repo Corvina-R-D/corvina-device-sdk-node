@@ -1,8 +1,5 @@
-import { Logger, Controller, Injectable, Body, Post, Get, Inject } from "@nestjs/common";
+import { Logger, Controller, Injectable, Body, Post, Get } from "@nestjs/common";
 import { DeviceConfig, DeviceService } from "../../../../../libs/device-client/src/services/device.service";
-import { DataPoint } from "../../../../../libs/device-client/src/common/types";
-import { Request, Response } from "express";
-import { LicenseData } from "../../../../../libs/device-client/src/services/licensesaxiosinstance";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { DeviceConfigDTO } from "./dto/deviceconfig.dto";
 import { LicenseDataDTO } from "./dto/licensedata.dto";

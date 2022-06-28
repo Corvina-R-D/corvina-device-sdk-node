@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { DeviceService } from "./device.service";
 import { PacketFormatEnum } from "../common/types";
-import { ConfigService } from "@nestjs/config";
 import * as fs from "fs";
 import * as path from "path";
 import { AlarmDesc, TagDesc } from "../common/types";
@@ -25,10 +24,10 @@ export class DeviceRunnerService implements DeviceRunner {
         return result;
     }
 
-    constructor(private configService: ConfigService, private deviceService: DeviceService) {}
+    constructor(private deviceService: DeviceService) {}
 
     run() {
-        this.deviceService.setCycleTime(this.configService.get<number>("CYCLE_TIME") || 1000);
+        this.deviceService.setCycleTime(parseInt(process.env.CYCLE_TIME) || 1000);
         const availableTagsFile = process.env.AVAILABLE_TAGS_FILE || "";
         this.deviceService.reinit(
             {

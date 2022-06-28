@@ -1,7 +1,7 @@
 import { Logger, Controller, Injectable, Post, Query, Inject, Body, Param } from "@nestjs/common";
 import { DeviceService } from "../../../../../libs/device-client/src/services/device.service";
 import { DataPoint } from "../../../../../libs/device-client/src/common/types";
-import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from "@nestjs/swagger";
+import { ApiBody, ApiOperation, ApiQuery, ApiTags } from "@nestjs/swagger";
 import { DataPointDTO } from "./dto/datapoint.dto";
 
 /** Handles requests from Nebbiolo FOG CEP */

@@ -13,7 +13,6 @@ import {
     MessagePublisher_OrPolicy,
     MessagePublisher_AnalogBandPolicy,
 } from "./messagepublisherpolicies";
-import { NodePath } from "@babel/core";
 
 export type TypedObject<T> = { [key: string]: T };
 export type ConfigurationType = "datamodel";

@@ -4,7 +4,7 @@ import { Logger as l } from "@nestjs/common";
 import pem from "pem";
 import LicensesAxiosInstance, { LicenseData, CrtData } from "./licensesaxiosinstance";
 import mqtt, { IClientOptions, MqttClient } from "mqtt";
-import BSON, { DBRef } from "bson";
+import BSON from "bson";
 import _ from "lodash";
 import { DataSimulator, AlarmSimulator, BaseSimulator } from "./simulation";
 import { TagDesc, AlarmDesc, DataPoint, AlarmData, AlarmCommand } from "../common/types";
@@ -12,8 +12,6 @@ import { Injectable } from "@nestjs/common";
 
 const assert = require("assert");
 
-import * as fs from "fs";
-import * as path from "path";
 import CorvinaDataInterface from "./corvinadatainterface";
 
 const x509 = require("x509.js");
