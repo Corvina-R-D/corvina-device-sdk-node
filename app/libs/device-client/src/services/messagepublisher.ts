@@ -1,12 +1,15 @@
+import { createBrotliCompress } from "zlib";
 import { castCorvinaType } from "../common/types";
+import { PostCallback } from "./corvinadatainterface";
 import { MessagePublisherPolicy, State, StateTS } from "./messagepublisherpolicies";
-import { MessageSender } from "./messagesender";
+import { InternalMessageSenderOptions, MessageSender, MessageSenderOptions } from "./messagesender";
 
 /*! Publish data according to new data and installed policies */
 export class MessagePublisher {
     protected _topic: string;
     protected _topicType: string;
     protected _tagName: string;
+    protected _modelPath: string;
     protected _nextTime: StateTS;
     protected _policy: MessagePublisherPolicy;
     protected _armed: boolean;
@@ -16,8 +19,19 @@ export class MessagePublisher {
     protected _lastPublishedStateVersion = 0;
     private _messageSender: MessageSender;
 
-    constructor({ sourceTag, topic, topicType }: { sourceTag: string; topic: string; topicType: string }) {
+    constructor({
+        sourceTag,
+        modelPath,
+        topic,
+        topicType,
+    }: {
+        sourceTag: string;
+        modelPath: string;
+        topic: string;
+        topicType: string;
+    }) {
         this._tagName = sourceTag;
+        this._modelPath = modelPath;
         this._topic = topic;
         this._topicType = topicType;
         this._tagName = sourceTag;
@@ -29,6 +43,10 @@ export class MessagePublisher {
 
     get policy(): MessagePublisherPolicy {
         return this._policy;
+    }
+
+    get modelPath(): string {
+        return this._modelPath;
     }
 
     setPolicy(policy: MessagePublisherPolicy) {
@@ -72,7 +90,7 @@ export class MessagePublisher {
     }
 
     /* Derived class must reimplement this function to actually publish value */
-    publish(currentTime: StateTS, messageSender: MessageSender) {
+    publish(currentTime: StateTS, messageSender: MessageSender, options?: InternalMessageSenderOptions) {
         // If there are no updates in the state from previous publish (we are polling a constant value from the cloud), use current timestamp
         // Otherwise try to use source timestamp
         const ts =
@@ -80,13 +98,20 @@ export class MessagePublisher {
 
         if (!ts) {
             // never received an update => don't send anything
+            if (options?.cb) {
+                options.cb(new Error("Nothing to send"), undefined);
+            }
             return;
         }
 
-        messageSender.sendMessage(this._topic, {
-            t: ts,
-            v: this._stateToPublish.value,
-        });
+        messageSender.sendMessage(
+            this._topic,
+            {
+                t: ts,
+                v: this._stateToPublish.value,
+            },
+            options,
+        );
 
         this._lastPublishedStateVersion = this._lastStateVersion;
         this.rearm(currentTime);
@@ -115,9 +140,13 @@ export class MessagePublisher {
 export class AggregatedMessagePublisher extends MessagePublisher {
     private _recomputePolicy = false;
 
-    constructor({ sourceTag, topic }: { sourceTag: string; topic: string }) {
-        super({ sourceTag, topic, topicType: "struct" });
+    constructor({ sourceTag, modelPath, topic }: { sourceTag: string; modelPath: string, topic: string }) {
+        super({ sourceTag, modelPath, topic, topicType: "struct" });
         this._fields = [];
+    }
+
+    get modelPath(): string {
+        return this._modelPath;
     }
 
     addField({ tagName, fieldName, type }: { tagName: string; fieldName: string; type: string }) {
@@ -149,7 +178,7 @@ export class AggregatedMessagePublisher extends MessagePublisher {
         return super.update({ tagName, newState, currentTime });
     }
 
-    publish(currentTime: StateTS, messageSender: MessageSender) {
+    publish(currentTime: StateTS, messageSender: MessageSender, options?: InternalMessageSenderOptions) {
         const ts =
             this._lastPublishedStateVersion == this._lastStateVersion ? Date.now() : this._stateToPublish.timestamp;
 
@@ -158,7 +187,7 @@ export class AggregatedMessagePublisher extends MessagePublisher {
             x[f.fieldName] = f.lastValueToPublish;
         });
 
-        messageSender.sendMessage(this._topic, { t: ts, v: x });
+        messageSender.sendMessage(this._topic, { t: ts, v: x }, options);
 
         this._lastPublishedStateVersion = this._lastStateVersion;
         this.rearm(currentTime);

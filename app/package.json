@@ -28,7 +28,7 @@
     "@nestjs/platform-express": "^8.1.1",
     "@nestjs/swagger": "^5.2.1",
     "@nestjs/terminus": "^8.0.6",
-    "bson": "^4.6.2",
+    "bson": "^4.6.4",
     "d3-ease": "^1.0.5",
     "dotenv": "^16.0.1",
     "mqtt": "^4.3.7",

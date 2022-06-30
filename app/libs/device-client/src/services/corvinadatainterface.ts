@@ -3,8 +3,14 @@ import { Injectable, Logger as l } from "@nestjs/common";
 import { EventEmitter } from "stream";
 import parseDeviceConfig, { DeviceConfiguration, DeviceConfigurationData } from "./configparser";
 import { INVALID_STATE_TS, State } from "./messagepublisherpolicies";
-import { MessageSender } from "./messagesender";
+import { InternalMessageSenderOptions, MessageSender, MessageSenderOptions } from "./messagesender";
 import { castCorvinaType } from "../common/types";
+
+/**
+ * Report notification errors for this post operation or the updated modelPaths
+ */
+export declare type PostCallback = (error: Error, tagName: string, modelPath: string) => any;
+export declare type PacketPostCallback = (error?: Error, packet?: any) => any;
 
 /**
  * The CorvinaClient manages the configuration of the device sent by
@@ -77,23 +83,46 @@ export default class CorvinaDataInterface extends EventEmitter implements Messag
      * @param tagName : the source tag to publish
      * @param newState : the new tag state to publish
      */
-    public notifyTag(tagName: string, newState: State) {
+    public notifyTag(tagName: string, newState: State, options?: MessageSenderOptions) {
         let nextTime = INVALID_STATE_TS;
         const currentTime = this.monotonicTimer();
         const tagPublishers = this._config.tagPublishers.get(tagName);
 
         if (!tagPublishers || tagPublishers.size == 0) {
+            const err = "Cannot publish unconfigured tag " + tagName;
+            if (options?.cb) {
+                options.cb(new Error(err), tagName, undefined);
+            }
             l.verbose("Cannot publish unconfigured tag " + tagName);
             return;
         }
 
+        let nothingToPublish = true;
         tagPublishers.forEach((publisher) => {
             nextTime = Math.min(nextTime, publisher.update({ tagName, newState, currentTime }));
-            
-            if (nextTime <= currentTime) {
-                publisher.publish(currentTime, this);
+
+            if (nextTime <= currentTime || options?.forceImmediateSend) {
+                nothingToPublish = false;
+                if (options?.cb) {
+                    const internalOptions = { ...options };
+                    internalOptions.cb = (err, pkt) => {
+                        if (err) {
+                            options.cb(err, tagName, publisher.modelPath);
+                        } else {
+                            options.cb(undefined, tagName, publisher.modelPath);
+                        }
+                    };
+                    publisher.publish(currentTime, this, internalOptions as InternalMessageSenderOptions);
+                } else {
+                    publisher.publish(currentTime, this, options as InternalMessageSenderOptions);
+                }
             }
         });
+        if (nothingToPublish) {
+            if (options?.cb) {
+                options.cb(undefined, undefined, undefined);
+            }
+        }
     }
 
     public onWrite(subscriber: MessageSubscriber, message: any) {

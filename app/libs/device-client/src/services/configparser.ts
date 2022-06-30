@@ -644,12 +644,14 @@ function parseDeviceConfigurationNode({
             if (node.sendPolicy) {
                 publisher = new AggregatedMessagePublisher({
                     sourceTag,
+                    modelPath: nodePath,
                     topic: device_endpoint,
                 });
                 initPublisher(publisher, sourceTag, node.sendPolicy, deviceConfig);
             } else {
                 publisher = new AggregatedMessagePublisher({
                     sourceTag: undefined,
+                    modelPath: nodePath,
                     topic: undefined,
                 });
             }
@@ -700,6 +702,7 @@ function parseDeviceConfigurationNode({
                 if (node.sendPolicy) {
                     const publisher = new MessagePublisher({
                         sourceTag,
+                        modelPath: nodePath,
                         topic: device_endpoint,
                         topicType: node.type,
                     });

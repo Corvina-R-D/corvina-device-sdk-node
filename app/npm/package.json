@@ -40,7 +40,7 @@
   "dependencies": {
     "@nestjs/config": "^2.0.0",
     "@nestjs/terminus": "^8.0.6",
-    "bson": "^4.6.2",
+    "bson": "^4.6.4",
     "d3-ease": "^1.0.5",
     "mqtt": "^4.3.7",
     "mustache": "^4.2.0",
