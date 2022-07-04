@@ -1,3 +1,4 @@
+import { DeviceService } from "@corvina/device-client";
 import { DeviceRunnerService } from "@corvina/device-client/services/devicerunner.service";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
@@ -22,5 +23,8 @@ async function bootstrap() {
     await app.listen(3000);
 
     app.get(DeviceRunnerService).run();
+    app.get(DeviceService).on('write', (event) => {
+        console.log('Write event received', event)
+    })
 }
 bootstrap();
