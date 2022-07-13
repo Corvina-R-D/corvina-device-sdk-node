@@ -1,6 +1,5 @@
 import { PacketFormatEnum } from "./../common/types";
 import { State } from "./messagepublisherpolicies";
-import { Logger as l } from "@nestjs/common";
 import pem from "pem";
 import LicensesAxiosInstance, { LicenseData, CrtData } from "./licensesaxiosinstance";
 import mqtt, { IClientOptions, IClientPublishOptions, MqttClient } from "mqtt";
@@ -8,12 +7,12 @@ import BSON from "bson";
 import _ from "lodash";
 import { DataSimulator, AlarmSimulator, BaseSimulator } from "./simulation";
 import { TagDesc, AlarmDesc, DataPoint, AlarmData, AlarmCommand } from "../common/types";
-import { Injectable } from "@nestjs/common";
 
 const assert = require("assert");
 
 import CorvinaDataInterface, { PostCallback } from "./corvinadatainterface";
 import { InternalMessageSenderOptions, MessageSenderOptions } from "./messagesender";
+import { l, DeviceLoggerService } from "./logger.service";
 
 const x509 = require("x509.js");
 
@@ -53,7 +52,6 @@ export interface DeviceStatus {
 /**
  * Manages the device identity and communication with the cloud
  */
-@Injectable()
 export class DeviceService extends CorvinaDataInterface {
     protected inited: boolean;
     protected initPending: Promise<boolean>;

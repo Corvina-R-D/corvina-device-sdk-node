@@ -1,4 +1,3 @@
-import { Injectable } from "@nestjs/common";
 import { DeviceService } from "./device.service";
 import { PacketFormatEnum } from "../common/types";
 import * as fs from "fs";
@@ -6,7 +5,6 @@ import * as path from "path";
 import { AlarmDesc, TagDesc } from "../common/types";
 import { DeviceRunner } from "./devicerunner.interface";
 
-@Injectable()
 export class DeviceRunnerService implements DeviceRunner {
     private setAvailableStructures(availableTags: TagDesc[]): Map<string, TagDesc> {
         const structs = new Set<TagDesc>();
@@ -24,7 +22,9 @@ export class DeviceRunnerService implements DeviceRunner {
         return result;
     }
 
-    constructor(private deviceService: DeviceService) {}
+    constructor(private deviceService: DeviceService) {
+        console.log("Creating device runner service");
+    }
 
     run() {
         this.deviceService.setCycleTime(parseInt(process.env.CYCLE_TIME) || 1000);

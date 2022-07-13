@@ -1,11 +1,10 @@
 import { MessageSubscriber } from "./messagesubscriber";
-import { Injectable, Logger as l } from "@nestjs/common";
 import { EventEmitter } from "stream";
 import parseDeviceConfig, { DeviceConfiguration, DeviceConfigurationData } from "./configparser";
 import { INVALID_STATE_TS, State } from "./messagepublisherpolicies";
 import { InternalMessageSenderOptions, MessageSender, MessageSenderOptions } from "./messagesender";
 import { castCorvinaType } from "../common/types";
-
+import { l, DeviceLoggerService } from "./logger.service";
 /**
  * Report notification errors for this post operation or the updated modelPaths
  */
@@ -16,7 +15,6 @@ export declare type PacketPostCallback = (error?: Error, packet?: any) => any;
  * The CorvinaClient manages the configuration of the device sent by
  * the cloud.
  */
-@Injectable()
 export default class CorvinaDataInterface extends EventEmitter implements MessageSender {
     protected _config: DeviceConfiguration;
     private CYCLE_TIME: number;
@@ -93,7 +91,7 @@ export default class CorvinaDataInterface extends EventEmitter implements Messag
             if (options?.cb) {
                 options.cb(new Error(err), tagName, undefined);
             }
-            l.verbose("Cannot publish unconfigured tag " + tagName);
+            l.debug("Cannot publish unconfigured tag " + tagName);
             return;
         }
 
@@ -126,7 +124,7 @@ export default class CorvinaDataInterface extends EventEmitter implements Messag
     }
 
     public onWrite(subscriber: MessageSubscriber, message: any) {
-        l.verbose("CorvinaDataInterface.onWrite", message);
+        l.debug("CorvinaDataInterface.onWrite", message);
         this.emit("write", {
             topic: subscriber.topic,
             modelPath: subscriber.modelPath,

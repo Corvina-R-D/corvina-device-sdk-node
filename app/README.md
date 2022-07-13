@@ -1,11 +1,11 @@
-# Corvina simulated device
+# Corvina simulated device example
 
 ## Quick Start
 
 ```shell
 yarn install
 
-ACTIVATION_KEY=.... PAIRING_ENDPOINT=https://pairing.corvina.io/api/v1/ yarn start:dev example
+ACTIVATION_KEY=.... PAIRING_ENDPOINT=https://pairing.corvina.io/api/v1/ yarn start:dev
 ```
 
 A web interface will be available at `http://localhost:3000/`.

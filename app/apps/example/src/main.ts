@@ -1,5 +1,4 @@
-import { DeviceService } from "@corvina/device-client";
-import { DeviceRunnerService } from "@corvina/device-client/services/devicerunner.service";
+import { DeviceService, DeviceRunnerService } from "@corvina/corvina-device-sdk";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
