@@ -31,6 +31,5 @@
     "corvina",
     "iot"
   ],
-  "bin": { "corvina-device-example" : "dist/main.js" }
-
+  "bin": "dist/main.js"
 }
