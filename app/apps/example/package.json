@@ -1,13 +1,13 @@
 {
   "name": "corvina-device-example",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.6",
   "description": "Corvina Device Example",
   "license": "MIT",
   "scripts": {
     "build": "nest build"
   },
   "dependencies": {
-    "@corvina/corvina-device-sdk" : "*"
+    "@corvina/corvina-device-sdk": "^1.0.6"
   }
 }
