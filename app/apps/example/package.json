@@ -21,6 +21,7 @@
     "@nestjs/common": "^9.0.3",
     "@nestjs/config": "^2.2.0",
     "@nestjs/core": "^9.0.3",
+    "@nestjs/platform-express": "^9.0.3",
     "@nestjs/swagger": "^6.0.3",
     "@nestjs/terminus": "^9.0.0",
     "@nestjs/testing": "^9.0.3",
@@ -29,5 +30,7 @@
   "keywords": [
     "corvina",
     "iot"
-  ]
+  ],
+  "bin": { "corvina-device-example" : "dist/main.js" }
+
 }

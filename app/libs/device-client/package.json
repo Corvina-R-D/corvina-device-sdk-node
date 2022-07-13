@@ -45,12 +45,7 @@
   "bugs": {
     "url": "https://github.com/corvina/corvina-device-sdk"
   },
-  "peerDependencies": {
-    "@nestjs/common": "^8.1.1"
-  },
   "dependencies": {
-    "@nestjs/config": "^2.0.0",
-    "@nestjs/terminus": "^8.0.6",
     "axios": "^0.27.2",
     "bson": "^4.6.4",
     "d3-ease": "^1.0.5",
@@ -69,11 +64,6 @@
     "x509.js": "^1.0.0"
   },
   "devDependencies": {
-    "@babel/preset-env": "^7.16.11",
-    "@babel/preset-typescript": "^7.16.7",
-    "@nestjs/cli": "^8.2.4",
-    "@nestjs/schematics": "^8.0.4",
-    "@nestjs/testing": "^8.1.1",
     "@types/express": "^4.17.13",
     "@types/jest": "^27.0.2",
     "@types/node": "^16.11.1",
