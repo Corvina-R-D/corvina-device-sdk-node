@@ -1590,7 +1590,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@corvina/corvina-device-example@workspace:apps/example"
   dependencies:
-    "@corvina/corvina-device-sdk": ^1.0.7
+    "@corvina/corvina-device-sdk": ^1.0.8
     "@nestjs/common": ^9.0.3
     "@nestjs/config": ^2.2.0
     "@nestjs/core": ^9.0.3
@@ -1600,11 +1600,11 @@ __metadata:
     "@nestjs/testing": ^9.0.3
     supertest: ^6.2.4
   bin:
-    corvina-device-example: dist/main.js
+    corvina-device-example: ./bin/corvina-device-example.js
   languageName: unknown
   linkType: soft
 
-"@corvina/corvina-device-sdk@^1.0.7, @corvina/corvina-device-sdk@workspace:libs/device-client":
+"@corvina/corvina-device-sdk@^1.0.8, @corvina/corvina-device-sdk@workspace:libs/device-client":
   version: 0.0.0-use.local
   resolution: "@corvina/corvina-device-sdk@workspace:libs/device-client"
   dependencies:

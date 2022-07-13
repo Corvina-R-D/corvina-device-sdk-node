@@ -39,7 +39,5 @@
     "corvina",
     "iot"
   ],
-  "bind": {
-    "corvina-device-example": "./bin/corvina-device-example.js"
-  }
+  "bin": "./bin/corvina-device-example.js"
 }
