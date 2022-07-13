@@ -7,6 +7,14 @@
   "publishConfig": {
     "access": "public"
   },
+  "main": "./dist/main.js",
+  "exports": {
+    ".": {
+      "default": "./dist/main.js"
+    },
+    "./package.json": "./package.json",
+    "./bin/corvina-device-example": "./bin/corvina-device-example.js"
+  },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\"",
@@ -31,5 +39,5 @@
     "corvina",
     "iot"
   ],
-  "bin": "dist/main.js"
+  "corvina-device-example": "./bin/corvina-device-example.js"
 }
