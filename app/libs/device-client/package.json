@@ -15,7 +15,9 @@
   },
   "typesVersions": {
     "*": {
-      "*": ["./dist/*"]
+      "*": [
+        "./dist/*"
+      ]
     }
   },
   "scripts": {
@@ -49,8 +51,10 @@
   "dependencies": {
     "@nestjs/config": "^2.0.0",
     "@nestjs/terminus": "^8.0.6",
+    "axios": "^0.27.2",
     "bson": "^4.6.4",
     "d3-ease": "^1.0.5",
+    "lodash": "^4.17.21",
     "mqtt": "^4.3.7",
     "mustache": "^4.2.0",
     "passport": "^0.5.2",
@@ -76,6 +80,7 @@
     "@types/supertest": "^2.0.11",
     "@typescript-eslint/eslint-plugin": "^4.29.2",
     "@typescript-eslint/parser": "^4.29.2",
+    "chai": "^4.3.6",
     "eslint": "^7.32.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-prettier": "^3.4.1",

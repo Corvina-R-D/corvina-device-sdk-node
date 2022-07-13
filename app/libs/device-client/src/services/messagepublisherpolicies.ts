@@ -62,9 +62,13 @@ export abstract class MessagePublisherPolicy {
         return [];
     }
     /*! Set the tagname is currently empty */
-    public setDefaultTagName(tagName: string) {}
+    public setDefaultTagName(tagName: string) {
+        /* should we obsolete it ? */
+    }
     /*! Set the tagname of a field */
-    public setFieldTagName({ fieldName, tagName }: { fieldName: string; tagName: string }) {}
+    public setFieldTagName({ fieldName, tagName }: { fieldName: string; tagName: string }) {
+        /** by default do nothing */
+    }
 
     /*! Returns a multi tag version, for instance if the type is qualitygood, returns
      * a AND of each single tag */

@@ -58,6 +58,7 @@
     "@typescript-eslint/parser": "^4.29.2",
     "eslint": "^7.32.0",
     "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-import": "^2.26.0",
     "eslint-plugin-prettier": "^3.4.1",
     "jest": "^27.3.0",
     "lerna": "^5.1.8",
@@ -100,5 +101,6 @@
   "workspaces": [
     "apps/example",
     "libs/device-client"
-  ]
+  ],
+  "packageManager": "yarn@3.2.1"
 }

@@ -22,8 +22,8 @@ async function bootstrap() {
     await app.listen(3000);
 
     app.get(DeviceRunnerService).run();
-    app.get(DeviceService).on('write', (event) => {
-        console.log('Write event received', event)
-    })
+    app.get(DeviceService).on("write", (event) => {
+        console.log("Write event received", event);
+    });
 }
 bootstrap();

@@ -168,7 +168,9 @@ export class BaseSimulator implements AbstractSimulator {
         return target.value;
     };
 
-    loop() {}
+    loop() {
+        // default implementation do nothing
+    }
 }
 
 export class DataSimulator extends BaseSimulator {

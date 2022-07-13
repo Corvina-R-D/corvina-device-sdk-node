@@ -140,7 +140,7 @@ export class MessagePublisher {
 export class AggregatedMessagePublisher extends MessagePublisher {
     private _recomputePolicy = false;
 
-    constructor({ sourceTag, modelPath, topic }: { sourceTag: string; modelPath: string, topic: string }) {
+    constructor({ sourceTag, modelPath, topic }: { sourceTag: string; modelPath: string; topic: string }) {
         super({ sourceTag, modelPath, topic, topicType: "struct" });
         this._fields = [];
     }

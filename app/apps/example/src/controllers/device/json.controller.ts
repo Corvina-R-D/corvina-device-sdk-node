@@ -17,7 +17,8 @@ export class Json {
     })
     @ApiQuery({
         name: "tagName",
-        description: "prefix of device identifier (name) of data source. The actual tag names advertised to the cloud are automatically generated as this prefix plus each property JSON path. The prefix can be undefined, so that only JSON paths are used",
+        description:
+            "prefix of device identifier (name) of data source. The actual tag names advertised to the cloud are automatically generated as this prefix plus each property JSON path. The prefix can be undefined, so that only JSON paths are used",
         schema: { default: undefined },
         required: false,
     })
