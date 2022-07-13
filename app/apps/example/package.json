@@ -1,13 +1,26 @@
 {
-  "name": "corvina-device-example",
-  "private": true,
-  "version": "1.0.6",
-  "description": "Corvina Device Example",
+  "name": "@corvina/corvina-device-example",
+  "version": "1.0.0",
+  "description": "Corvina Device Example base on corvina-device-sdk",
+  "author": "arrigo.zanette@corvina.io",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "nest build"
+    "build": "nest build",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "lint": "tslint -p ./tsconfig.app.json -c tslint.json",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
     "@corvina/corvina-device-sdk": "^1.0.6"
-  }
+  },
+  "keywords": [
+    "corvina",
+    "iot"
+  ]
 }
