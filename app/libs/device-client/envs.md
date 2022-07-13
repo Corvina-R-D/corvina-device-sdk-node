@@ -1,18 +1,6 @@
-# Corvina simulated device example
-
-## Quick Start
-
-```shell
-yarn install
-
-ACTIVATION_KEY=.... PAIRING_ENDPOINT=https://pairing.corvina.io/api/v1/ yarn start:dev
-```
-
-A web interface will be available at `http://localhost:3000/`.
-
 ## Setup configuration environment
 
-The virtual device can be configured passing environment variables inline or in file `.env`
+The device can be configured passing environment variables inline or in file `.env`
 
 The last configuration is saved in `.env` after lines:
 
@@ -77,9 +65,3 @@ AVAILABLE_TAGS=[{"name":"struct.Tag1","type":"integer"},{"name":"struct.Tag2","t
  will simulate sending both `struct` as a whole, and `struct.Tag1` and `struct.Tag2` as single properties.
 
 In particular, the whole simulated structure can be attached to a Corvina structure only if the set of properties matches (same names, case sensitive).
-
-### Using the example rest interface
-
-It is possible to send generic JSON posting to the `/device/json` endpoint.
-
-Each of the JSON properties posted will be advertised to the cloud with the corresponding JSON paths.

@@ -1,4 +1,3 @@
-import { Logger as l } from "@nestjs/common";
 import Mustache from "mustache";
 
 import {
@@ -15,6 +14,7 @@ import {
 const ease = require("d3-ease");
 import _ from "lodash";
 import { clearInterval } from "timers";
+import { l } from "./logger.service";
 
 enum StepSimulationState {
     STABLE,
@@ -168,7 +168,9 @@ export class BaseSimulator implements AbstractSimulator {
         return target.value;
     };
 
-    loop() {}
+    loop() {
+        // default implementation do nothing
+    }
 }
 
 export class DataSimulator extends BaseSimulator {
@@ -507,7 +509,7 @@ export class DataSimulator extends BaseSimulator {
         DataSimulator.sorted = false;
         BaseSimulator.inited = false;
         BaseSimulator.simulatorsByTagName && BaseSimulator.simulatorsByTagName.clear();
-        clearInterval( BaseSimulator.intervalID );
+        clearInterval(BaseSimulator.intervalID);
     }
 }
 

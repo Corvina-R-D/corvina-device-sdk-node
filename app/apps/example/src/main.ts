@@ -1,7 +1,7 @@
-import { DeviceService } from "@corvina/device-client";
-import { DeviceRunnerService } from "@corvina/device-client/services/devicerunner.service";
+import { DeviceService, DeviceRunnerService } from "@corvina/corvina-device-sdk";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import axios from "axios";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
@@ -23,8 +23,11 @@ async function bootstrap() {
     await app.listen(3000);
 
     app.get(DeviceRunnerService).run();
-    app.get(DeviceService).on('write', (event) => {
-        console.log('Write event received', event)
-    })
+    app.get(DeviceService).on("write", (event) => {
+        console.log("Write event received", event);
+        if (process.env["WRITE_CALLBACK"]) {
+            axios.post(process.env["WRITE_CALLBACK"], event);
+        }
+    });
 }
 bootstrap();

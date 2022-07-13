@@ -1,8 +1,9 @@
 import { Logger, Controller, Injectable, Post, Query, Inject, Body, Param } from "@nestjs/common";
-import { DeviceService } from "../../../../../libs/device-client/src/services/device.service";
-import { DataPoint } from "../../../../../libs/device-client/src/common/types";
+import { DeviceService } from "@corvina/corvina-device-sdk";
+import { DataPoint } from "@corvina/corvina-device-sdk";
 import { ApiBody, ApiOperation, ApiQuery, ApiTags } from "@nestjs/swagger";
 import { DataPointDTO } from "./dto/datapoint.dto";
+import axios from "axios";
 
 /** Handles requests from Nebbiolo FOG CEP */
 @ApiTags("device")
@@ -14,27 +15,79 @@ export class Json {
 
     @ApiOperation({
         summary: "Post a new JSON value",
+        callbacks: {
+            result: {
+                "{$request.query#/callback}": {
+                    post: {
+                        requestBody: {
+                            required: true,
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            error: {
+                                                type: "object",
+                                                properties: {
+                                                    message: {
+                                                        type: "string",
+                                                    },
+                                                },
+                                            },
+                                            tagName: {
+                                                type: "string",
+                                            },
+                                            modelPath: {
+                                                type: "string",
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                        responses: {
+                            "200": { description: "The server acknowledged the request" },
+                        },
+                    },
+                },
+            },
+        },
     })
     @ApiQuery({
         name: "tagName",
-        description: "prefix of device identifier (name) of data source. The actual tag names advertised to the cloud are automatically generated as this prefix plus each property JSON path. The prefix can be undefined, so that only JSON paths are used",
-        schema: { default: undefined },
+        description:
+            "Prefix of device identifier (name) of data source. The actual tag names advertised to the cloud are automatically generated as this prefix plus each property JSON path. The prefix can be undefined, so that only JSON paths are used",
+        schema: { default: undefined, example: "temperature" },
         required: false,
     })
     @ApiQuery({
         name: "timestamp",
-        description: "specify a timestamp (if omitted the request timestamp is used) ",
+        description: "Specify a timestamp (if omitted the request timestamp is used) ",
+        required: false,
+    })
+    @ApiQuery({
+        name: "callback",
+        description: "Specify an optional callback to be invoked when the message has been delivered",
+        schema: { type: "string", format: "uri", example: "http://localhost:30001" },
+        required: false,
+    })
+    @ApiQuery({
+        name: "qos",
+        description: "Specify an optional qos (by default is zeo)",
+        schema: { type: "number", minimum: 0, maximum: 2, default: 0, example: 1 },
         required: false,
     })
     @ApiBody({
         description:
-            "the json value to set. Each property in the json is assigned as internal identifier (tagName) the corresponding the json path. For instance { v: {a : 1 } } corresponds to advertised available tags: ['v.a'] ",
-        schema: { default: "{}" },
+            "The json value to set. Each property in the json is assigned as full tag name advertised to the cloud as ```availableTags``` the corresponding json path prefixed by ```tagName```. For instance, if ```tagName=\"tag\"``` and value is ```{ a: {b : 1 } }``` the advertised list of available tags is  ```['tag.a.b']```. If ```tagName``` is undefined the advertised list of available tags is simply ```['a.b']```",
+        schema: { default: "{}", example: { Tag1: 1 } },
     })
     @Post()
     async post(
         @Query("tagName") tagName = undefined,
         @Query("timestamp") timestamp = undefined,
+        @Query("qos") qos = undefined,
+        @Query("callback") postCallback = undefined,
         @Body() v: any,
     ): Promise<DataPointDTO[]> {
         const t = timestamp || Date.now();
@@ -45,7 +98,14 @@ export class Json {
             timestamp: t,
         };
         dataPoints.push(dp);
-        await this.deviceService.post(dataPoints);
+        await this.deviceService.post(dataPoints, {
+            qos: qos || 0,
+            cb: postCallback
+                ? (error, tagName, modelPath) => {
+                      axios.post(postCallback, { error: { message: error.message }, tagName, modelPath });
+                  }
+                : undefined,
+        });
         return dataPoints;
     }
 }

@@ -15,7 +15,7 @@
       ],
       "sourceMaps": true,
       "envFile": "${workspaceFolder}/apps/example/.env",
-      "cwd": "${workspaceRoot}/",
+      "cwd": "${workspaceRoot}/apps/example",
       "console": "integratedTerminal",
       "protocol": "inspector",
       "autoAttachChildProcesses": true,

@@ -1,0 +1,46 @@
+{
+  "name": "@corvina/device-example",
+  "version": "1.0.7",
+  "description": "Corvina Device Example base on corvina-device-sdk",
+  "author": "arrigo.zanette@corvina.io",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/main.js",
+  "exports": {
+    ".": {
+      "default": "./dist/main.js"
+    },
+    "./package.json": "./package.json",
+    "./bin/corvina-device-example": "./bin/corvina-device-example.js"
+  },
+  "scripts": {
+    "build": "nest build",
+    "prebuild": "rimraf dist",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage"
+  },
+  "dependencies": {
+    "@corvina/corvina-device-sdk": "^1.0.8",
+    "@nestjs/common": "^9.0.3",
+    "@nestjs/config": "^2.2.0",
+    "@nestjs/core": "^9.0.3",
+    "@nestjs/platform-express": "^9.0.3",
+    "@nestjs/swagger": "^6.0.3",
+    "@nestjs/terminus": "^9.0.0",
+    "@nestjs/testing": "^9.0.3",
+    "axios": "^0.27.2",
+    "supertest": "^6.2.4"
+  },
+  "keywords": [
+    "corvina",
+    "iot"
+  ],
+  "bin": "./bin/corvina-device-example.js"
+}
