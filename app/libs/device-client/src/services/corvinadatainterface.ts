@@ -1,11 +1,10 @@
 import { MessageSubscriber } from "./messagesubscriber";
-import { Injectable, Logger as l } from "@nestjs/common";
 import { EventEmitter } from "stream";
 import parseDeviceConfig, { DeviceConfiguration, DeviceConfigurationData } from "./configparser";
 import { INVALID_STATE_TS, State } from "./messagepublisherpolicies";
 import { InternalMessageSenderOptions, MessageSender, MessageSenderOptions } from "./messagesender";
 import { castCorvinaType } from "../common/types";
-
+import { l } from "./logger.service";
 /**
  * Report notification errors for this post operation or the updated modelPaths
  */
@@ -16,26 +15,26 @@ export declare type PacketPostCallback = (error?: Error, packet?: any) => any;
  * The CorvinaClient manages the configuration of the device sent by
  * the cloud.
  */
-@Injectable()
-export default class CorvinaDataInterface extends EventEmitter implements MessageSender {
+export default class CorvinaDataInterface extends EventEmitter {
     protected _config: DeviceConfiguration;
     private CYCLE_TIME: number;
 
     protected _nextTick: number;
     protected _internalTimer: NodeJS.Timer;
+    protected _sender;
 
-    constructor() {
+    get config(): DeviceConfiguration {
+        return this._config;
+    }
+
+    constructor(sender: MessageSender) {
         super();
+        this._sender = sender;
         this.CYCLE_TIME = 1000;
     }
 
     public setCycleTime(cycleTime: number) {
         this.CYCLE_TIME = cycleTime;
-    }
-
-    public sendMessage(topic: string, payload: unknown, options?: unknown): Promise<any> {
-        // implement me
-        return new Promise(undefined);
     }
 
     protected monotonicTimer(): number {
@@ -68,7 +67,7 @@ export default class CorvinaDataInterface extends EventEmitter implements Messag
         for (const p of this._config.tagPublishers.values()) {
             for (const mp of p.values()) {
                 if (mp.nextTime(now) <= now) {
-                    mp.publish(now, this);
+                    mp.publish(now, this._sender);
                 }
             }
         }
@@ -93,7 +92,7 @@ export default class CorvinaDataInterface extends EventEmitter implements Messag
             if (options?.cb) {
                 options.cb(new Error(err), tagName, undefined);
             }
-            l.verbose("Cannot publish unconfigured tag " + tagName);
+            l.debug("Cannot publish unconfigured tag " + tagName);
             return;
         }
 
@@ -112,9 +111,9 @@ export default class CorvinaDataInterface extends EventEmitter implements Messag
                             options.cb(undefined, tagName, publisher.modelPath);
                         }
                     };
-                    publisher.publish(currentTime, this, internalOptions as InternalMessageSenderOptions);
+                    publisher.publish(currentTime, this._sender, internalOptions as InternalMessageSenderOptions);
                 } else {
-                    publisher.publish(currentTime, this, options as InternalMessageSenderOptions);
+                    publisher.publish(currentTime, this._sender, options as InternalMessageSenderOptions);
                 }
             }
         });
@@ -125,13 +124,4 @@ export default class CorvinaDataInterface extends EventEmitter implements Messag
         }
     }
 
-    public onWrite(subscriber: MessageSubscriber, message: any) {
-        l.verbose("CorvinaDataInterface.onWrite", message);
-        this.emit("write", {
-            topic: subscriber.topic,
-            modelPath: subscriber.modelPath,
-            fieldName: subscriber.fieldName,
-            v: castCorvinaType(message.v, subscriber.topicType),
-        });
-    }
 }

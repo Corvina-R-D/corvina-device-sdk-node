@@ -1,4 +1,3 @@
-import { Logger as l } from "@nestjs/common";
 import Mustache from "mustache";
 
 import {
@@ -15,6 +14,7 @@ import {
 const ease = require("d3-ease");
 import _ from "lodash";
 import { clearInterval } from "timers";
+import { l } from "./logger.service";
 
 enum StepSimulationState {
     STABLE,
@@ -141,7 +141,8 @@ export class BaseSimulator implements AbstractSimulator {
                     try {
                         value.loop();
                     } catch (e) {
-                        l.error("Error in simulation: ", e);
+                        l.error("Error in simulation:");
+                        l.error(e);
                     }
                 });
             }, BaseSimulator.simulationMs);
@@ -168,7 +169,9 @@ export class BaseSimulator implements AbstractSimulator {
         return target.value;
     };
 
-    loop() {}
+    loop() {
+        // default implementation do nothing
+    }
 }
 
 export class DataSimulator extends BaseSimulator {
@@ -314,7 +317,8 @@ export class DataSimulator extends BaseSimulator {
                                     return BaseSimulator.$(this, t);
                                 });
                             } catch (e) {
-                                l.error("Error evaluating", e);
+                                l.error("Error evaluating simulation function:");
+                                l.error(e);
                             }
                             if (this.value == null || this.value == undefined) {
                                 return;
@@ -507,7 +511,7 @@ export class DataSimulator extends BaseSimulator {
         DataSimulator.sorted = false;
         BaseSimulator.inited = false;
         BaseSimulator.simulatorsByTagName && BaseSimulator.simulatorsByTagName.clear();
-        clearInterval( BaseSimulator.intervalID );
+        clearInterval(BaseSimulator.intervalID);
     }
 }
 
@@ -603,7 +607,7 @@ export class AlarmSimulator extends BaseSimulator {
                 if (this.alarm.reset_required) {
                     this.alarmData.state |= AlarmState.ALARM_REQUIRES_RESET;
                 }
-                l.log(`Alarm ${this.alarmData.name} acknowledged by ${user} : ${comment}`);
+                l.info(`Alarm ${this.alarmData.name} acknowledged by ${user} : ${comment}`);
 
                 this.propagate();
             } else {
@@ -632,7 +636,7 @@ export class AlarmSimulator extends BaseSimulator {
             if (this.alarmData.state & AlarmState.ALARM_REQUIRES_RESET) {
                 if (!(this.alarmData.state & AlarmState.ALARM_ACTIVE)) {
                     this.alarmData.state &= ~(AlarmState.ALARM_ACKED | AlarmState.ALARM_REQUIRES_RESET);
-                    l.log(`Alarm ${this.alarmData.name} reset by ${user} : ${comment}`);
+                    l.info(`Alarm ${this.alarmData.name} reset by ${user} : ${comment}`);
                     this.propagate();
                 } else {
                     l.warn(`Cannot reset active alarm ${this.alarmData.name}`);
@@ -683,9 +687,10 @@ export class AlarmSimulator extends BaseSimulator {
             this.alarmData.ts = new Date();
 
             if (await this.callback(this.alarmData)) {
-                l.debug("Updated alarm value ", this.lastSentValue, this.value, this.alarmData);
+                l.debug("Updated alarm value %j %j %j", this.lastSentValue, this.value, this.alarmData);
             }
         } catch (e) {
+            l.error("Error propagating data");
             l.error(e);
         }
     }
@@ -709,7 +714,8 @@ export class AlarmSimulator extends BaseSimulator {
                     return BaseSimulator.$(this, t), BaseSimulator.$(this, this.alarm.source);
                 });
             } catch (e) {
-                l.error("Error evaluating", e);
+                l.error("Error evaluating alarm function");
+                l.error(e);
             }
             if (this.value == null || this.value == undefined) {
                 return;

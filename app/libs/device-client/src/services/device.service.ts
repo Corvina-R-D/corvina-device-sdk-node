@@ -1,6 +1,5 @@
-import { PacketFormatEnum } from "./../common/types";
+import { castCorvinaType, PacketFormatEnum } from "./../common/types";
 import { State } from "./messagepublisherpolicies";
-import { Logger as l } from "@nestjs/common";
 import pem from "pem";
 import LicensesAxiosInstance, { LicenseData, CrtData } from "./licensesaxiosinstance";
 import mqtt, { IClientOptions, IClientPublishOptions, MqttClient } from "mqtt";
@@ -8,12 +7,14 @@ import BSON from "bson";
 import _ from "lodash";
 import { DataSimulator, AlarmSimulator, BaseSimulator } from "./simulation";
 import { TagDesc, AlarmDesc, DataPoint, AlarmData, AlarmCommand } from "../common/types";
-import { Injectable } from "@nestjs/common";
 
 const assert = require("assert");
 
 import CorvinaDataInterface, { PostCallback } from "./corvinadatainterface";
 import { InternalMessageSenderOptions, MessageSenderOptions } from "./messagesender";
+import { l } from "./logger.service";
+import { MessageSubscriber } from "./messagesubscriber";
+import { EventEmitter } from "stream";
 
 const x509 = require("x509.js");
 
@@ -53,8 +54,7 @@ export interface DeviceStatus {
 /**
  * Manages the device identity and communication with the cloud
  */
-@Injectable()
-export class DeviceService extends CorvinaDataInterface {
+export class DeviceService extends EventEmitter {
     protected inited: boolean;
     protected initPending: Promise<boolean>;
     protected readyToTransmit: boolean;
@@ -84,10 +84,14 @@ export class DeviceService extends CorvinaDataInterface {
 
     protected _deviceConfig: DeviceConfig;
     protected axios: LicensesAxiosInstance;
+    protected dataInterface: CorvinaDataInterface;
 
     constructor() {
         super();
         this._deviceConfig = {};
+        this.dataInterface = new CorvinaDataInterface({
+            sendMessage: this.sendMessage.bind(this),
+        });
     }
 
     get status(): DeviceStatus {
@@ -124,6 +128,10 @@ export class DeviceService extends CorvinaDataInterface {
         return this.licenseData;
     }
 
+    public setCycleTime(cycleTime: number) {
+        this.dataInterface.setCycleTime(cycleTime);
+    }
+
     public reinit(deviceConfig: DeviceConfig, doInit = false): DeviceConfig {
         this.inited = false;
         this.readyToTransmit = false;
@@ -155,6 +163,17 @@ export class DeviceService extends CorvinaDataInterface {
         return this.mqttClient.connected;
     }
 
+    private setReady(ready: boolean) {
+        if (this.readyToTransmit != ready) {
+            this.readyToTransmit = ready;
+            if (ready) {
+                this.emit("ready", ready);
+            } else {
+                this.emit("not_ready", ready);
+            }
+        }
+    }
+
     private createCSR(logicalId: string): Promise<CSRData> {
         return new Promise((resolve, reject) => {
             pem.createCSR(
@@ -164,7 +183,7 @@ export class DeviceService extends CorvinaDataInterface {
                 },
                 (err, obj) => {
                     if (err == null) {
-                        l.debug("PEM RETURNED", err, obj);
+                        l.debug("PEM RETURNED %s %s", err, obj);
                         resolve(obj);
                     } else {
                         reject(err);
@@ -176,7 +195,7 @@ export class DeviceService extends CorvinaDataInterface {
 
     public async applyConfig(config: any) {
         if (JSON.stringify(config) == JSON.stringify(this.lastConfig)) {
-            l.log("Found same config => return");
+            l.info("Found same config => return");
             return;
         }
 
@@ -184,15 +203,15 @@ export class DeviceService extends CorvinaDataInterface {
             await this.initPending;
         }
 
-        this.readyToTransmit = false;
+        this.setReady(false);
         this.customIntrospections = "";
-        l.debug("Apply config: ", JSON.stringify(config));
-        super.applyConfig(config);
-        this._config.interfaceNames.forEach((interfaceName) => {
+        l.debug("Apply config: %s", JSON.stringify(config));
+        this.dataInterface.applyConfig(config);
+        this.dataInterface.config.interfaceNames.forEach((interfaceName) => {
             this.customIntrospections += `;${interfaceName}`;
         });
 
-        l.debug("done !");
+        l.debug("Applied config done!");
 
         this.lastConfig = config;
         setTimeout(async () => {
@@ -225,21 +244,21 @@ export class DeviceService extends CorvinaDataInterface {
             this.subscribeChannel(this.actionAlarmTopic);
 
             this.mqttClient.on("connect", async (v) => {
-                l.log("Successfully connected to mqtt broker!", JSON.stringify(v));
+                l.info("Successfully connected to mqtt broker!", JSON.stringify(v));
 
-                l.debug("published introspection " + DeviceService.baseIntrospection + this.customIntrospections);
+                l.debug("Published introspection " + DeviceService.baseIntrospection + this.customIntrospections);
                 await this.sendStringMessage(
                     this.introspectionTopic,
                     DeviceService.baseIntrospection + this.customIntrospections,
                     { qos: 2 },
                 );
                 // Empty properties cache
-                l.debug("published empty cache");
+                l.debug("Published empty cache");
                 await this.sendStringMessage(this.empyCacheTopic, "1", {
                     qos: 2,
                 });
 
-                l.debug("published configuration");
+                l.debug("Published configuration");
                 await this.sendStringMessage(
                     this.configTopic,
                     this.serializeMessage({
@@ -251,14 +270,14 @@ export class DeviceService extends CorvinaDataInterface {
 
                 this.throttledUpdateAvailableTags();
 
-                if (this._config) {
-                    this._config.subscribedTopics.forEach((topic, topicName) => {
+                if (this.dataInterface.config) {
+                    this.dataInterface.config.subscribedTopics.forEach((topic, topicName) => {
                         this.subscribeChannel(this.licenseData.realm + "/" + this.licenseData.logicalId + topicName);
                     });
                 }
 
-                this.readyToTransmit = true;
-                l.log("Ready to transmit!");
+                this.setReady(true);
+                l.info("Ready to transmit!");
 
                 DataSimulator.clear();
                 if (this._deviceConfig.simulateTags) {
@@ -295,22 +314,22 @@ export class DeviceService extends CorvinaDataInterface {
 
             this.mqttClient.on("close", (v) => {
                 DataSimulator.clear();
-                l.warn("Stream closed!", v);
+                l.warn("Stream closed! %j", v);
             });
 
             this.mqttClient.on("reconnect", (v) => {
                 DataSimulator.clear();
-                l.warn("Stream reconnected!", v);
+                l.warn("Stream reconnected! %j", v);
             });
 
             this.mqttClient.on("error", (error) => {
-                l.error("Stream error!", error);
+                l.error("Stream error! %j", error);
                 this.lastTriedBrokerEndpoint++;
                 reject(error);
             });
 
             this.mqttClient.on("message", (topic, message) => {
-                l.log(`Received message on ${topic} \n`);
+                l.info(`Received message on ${topic} \n`);
                 switch (topic) {
                     case this.consumerPropertiesTopic.toString():
                         l.debug("Received consumer properties!");
@@ -325,7 +344,7 @@ export class DeviceService extends CorvinaDataInterface {
                             AlarmSimulator.alarmSimulatorMapkey(x.name),
                         ) as AlarmSimulator;
                         if (!sim) {
-                            l.error("Trying to perform action on unknown alarm ", x.name);
+                            l.error("Trying to perform action on unknown alarm %s", x.name);
                         } else {
                             switch (x.command) {
                                 case "ack":
@@ -341,11 +360,11 @@ export class DeviceService extends CorvinaDataInterface {
                         const topicKey = topic.slice(
                             this.licenseData.logicalId.length + this.licenseData.realm.length + 1,
                         );
-                        const subscriber = this._config.subscribedTopics.get(topicKey);
+                        const subscriber = this.dataInterface.config.subscribedTopics.get(topicKey);
                         if (subscriber) {
                             this.onWrite(subscriber, BSON.deserialize(message));
                         } else {
-                            l.log("Nothing to do for topic ", topic);
+                            l.info("Nothing to do for topic ", topic);
                         }
                 }
             });
@@ -358,7 +377,7 @@ export class DeviceService extends CorvinaDataInterface {
                 if (!err) {
                     resolve(true);
                 } else {
-                    l.warn(`Error subscribing ${channel}: `, err);
+                    l.warn(`Error subscribing ${channel}: %j`, err);
                     reject(err);
                 }
             });
@@ -366,14 +385,14 @@ export class DeviceService extends CorvinaDataInterface {
     }
 
     public async sendStringMessage(channel: string, message: string, options: any = {}): Promise<any> {
-        l.debug("Going to publish ", channel /*, message */, this.readyToTransmit);
+        l.debug("Going to publish %s", channel);
 
         return new Promise((resolve, reject) => {
             this.mqttClient.publish(channel, message, options, (err) => {
                 if (!err) {
                     resolve(true);
                 } else {
-                    l.warn(`Error publishing to ${channel}: `, err);
+                    l.warn(`Error publishing to ${channel}: %j`, err);
                     reject(err);
                 }
             });
@@ -396,7 +415,7 @@ export class DeviceService extends CorvinaDataInterface {
             this.msgSentStats = 0;
             this.lastDateStats = this.lastDateStats + timeDiff;
         }
-        l.debug("Going to send to topic ", topic, this.readyToTransmit);
+        l.debug("Going to send to topic %s", topic);
         try {
             if (!this.readyToTransmit) {
                 const err = `Cannot publish if not ready to transmit`;
@@ -406,7 +425,7 @@ export class DeviceService extends CorvinaDataInterface {
                 }
                 throw "Cannot publish if not ready to transmit";
             }
-            console.debug(">>>>", topic, payload, topic.length, message.length, message);
+            l.debug(">>>> %s %j %d %d %j", topic, payload, topic.length, message.length, message);
             if (options?.cb) {
                 await this.mqttClient.publish(topic, message, options as IClientPublishOptions, (err, packet) => {
                     options.cb(err, packet);
@@ -415,7 +434,8 @@ export class DeviceService extends CorvinaDataInterface {
                 await this.mqttClient.publish(topic, message, options as IClientPublishOptions);
             }
         } catch (e) {
-            l.error("Got error while publishing: ", e);
+            l.error("Got error while publishing: ");
+            l.error(e);
             return false;
         }
     }
@@ -423,7 +443,7 @@ export class DeviceService extends CorvinaDataInterface {
     private async _asyncInit(): Promise<boolean> {
         try {
             this.licenseData = await this.axios.init();
-            l.debug("Got api key ", this.licenseData);
+            l.debug("Got api key %j ", this.licenseData);
             this.inited = true;
 
             /* Below steps should be cached to disk */
@@ -458,7 +478,6 @@ export class DeviceService extends CorvinaDataInterface {
                 crt.client_crt,
             );
         } catch (err) {
-            console.log("error initing", err);
             this.inited = false;
             throw err;
         }
@@ -473,7 +492,8 @@ export class DeviceService extends CorvinaDataInterface {
             try {
                 await this.initPending;
             } catch (err) {
-                l.error("Error initing: ", err);
+                l.error("Error initing:");
+                l.error(err);
                 this.initPending = null;
                 const randomRetry = 5 + 10 * Math.random();
                 l.warn(`Retry init in  ${randomRetry} secs`);
@@ -555,10 +575,10 @@ export class DeviceService extends CorvinaDataInterface {
                 } as TagDesc);
                 this.throttledUpdateAvailableTags();
             }
-            super.notifyTag(decoratedName, new State(value, ts), options);
+            this.dataInterface.notifyTag(decoratedName, new State(value, ts), options);
         });
         if (prefix.length > 0) {
-            super.notifyTag(prefix.slice(0, -1), new State(rootValue, ts), options);
+            this.dataInterface.notifyTag(prefix.slice(0, -1), new State(rootValue, ts), options);
         }
     };
 
@@ -573,12 +593,12 @@ export class DeviceService extends CorvinaDataInterface {
             if (options?.cb) {
                 options.cb(new Error(err), undefined, undefined);
             }
-            l.log(err);
+            l.info(err);
             return false;
         }
-        if (!this._config) {
+        if (!this.dataInterface.config) {
             const err = `Cannot process ${JSON.stringify(dataPoints)}. Device is not configured yet!`;
-            l.log(err);
+            l.info(err);
             if (options?.cb) {
                 options.cb(new Error(err), undefined, undefined);
             }
@@ -594,7 +614,7 @@ export class DeviceService extends CorvinaDataInterface {
                     this.recurseNotifyObject(dp.tagName + ".", dp.value, dp.timestamp, options);
                 } else {
                     // try to notify whole object
-                    super.notifyTag(dp.tagName as string, new State(dp.value, dp.timestamp), options);
+                    this.dataInterface.notifyTag(dp.tagName as string, new State(dp.value, dp.timestamp), options);
                 }
             }
         }
@@ -604,12 +624,22 @@ export class DeviceService extends CorvinaDataInterface {
 
     async postAlarm(alarmData: AlarmData): Promise<boolean> {
         const payload = this.serializeMessage({ t: Date.now(), v: alarmData });
-        l.debug("Going to send alarm ", { t: Date.now(), v: alarmData } /*, payload */);
+        l.debug("Going to send alarm  %j", { t: Date.now(), v: alarmData } /*, payload */);
         await this.mqttClient.publish(
             `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.DeviceAlarm/a`,
             payload,
             { qos: 2 },
         );
         return true;
+    }
+
+    protected onWrite(subscriber: MessageSubscriber, message: any) {
+        l.debug("CorvinaDataInterface.onWrite %j", message);
+        this.emit("write", {
+            topic: subscriber.topic,
+            modelPath: subscriber.modelPath,
+            fieldName: subscriber.fieldName,
+            v: castCorvinaType(message.v, subscriber.topicType),
+        });
     }
 }

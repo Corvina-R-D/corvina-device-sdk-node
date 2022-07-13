@@ -1,4 +1,3 @@
-import { Injectable } from "@nestjs/common";
 import { DeviceService } from "./device.service";
 import { PacketFormatEnum } from "../common/types";
 import * as fs from "fs";
@@ -6,7 +5,6 @@ import * as path from "path";
 import { AlarmDesc, TagDesc } from "../common/types";
 import { DeviceRunner } from "./devicerunner.interface";
 
-@Injectable()
 export class DeviceRunnerService implements DeviceRunner {
     private setAvailableStructures(availableTags: TagDesc[]): Map<string, TagDesc> {
         const structs = new Set<TagDesc>();
@@ -24,7 +22,9 @@ export class DeviceRunnerService implements DeviceRunner {
         return result;
     }
 
-    constructor(private deviceService: DeviceService) {}
+    constructor(private deviceService: DeviceService) {
+        // do nothing
+    }
 
     run() {
         this.deviceService.setCycleTime(parseInt(process.env.CYCLE_TIME) || 1000);
@@ -76,29 +76,31 @@ export class DeviceRunnerService implements DeviceRunner {
             true,
         );
 
-        // save data to file
-        const envFile = path.join(process.cwd(), ".env");
-        let currentContent = fs.readFileSync(envFile).toString();
-        const appendedValuesPos = currentContent.indexOf("### LAST-ENV ###");
-        const deviceConfig = this.deviceService.deviceConfig;
-        if (appendedValuesPos > 0) {
-            currentContent = currentContent.slice(0, appendedValuesPos);
-            currentContent += `
-### LAST-ENV ###
-# don't write below this line!!
-ACTIVATION_KEY=${deviceConfig.activationKey}
-PAIRING_ENDPOINT=${deviceConfig.pairingEndpoint}
-AVAILABLE_TAGS_FILE=${deviceConfig.availableTagsFile || ""}
-AVAILABLE_TAGS=${
-                !deviceConfig.availableTagsFile || deviceConfig.availableTagsFile.length == 0
-                    ? JSON.stringify(Array.from(deviceConfig.availableTags.values()))
-                    : ""
+        if (process.env.SAVE_LAST_ENV) {
+            // save data to file
+            const envFile = path.join(process.cwd(), ".env");
+            let currentContent = fs.readFileSync(envFile).toString();
+            const appendedValuesPos = currentContent.indexOf("### LAST-ENV ###");
+            const deviceConfig = this.deviceService.deviceConfig;
+            if (appendedValuesPos > 0) {
+                currentContent = currentContent.slice(0, appendedValuesPos);
+                currentContent += `
+    ### LAST-ENV ###
+    # don't write below this line!!
+    ACTIVATION_KEY=${deviceConfig.activationKey}
+    PAIRING_ENDPOINT=${deviceConfig.pairingEndpoint}
+    AVAILABLE_TAGS_FILE=${deviceConfig.availableTagsFile || ""}
+    AVAILABLE_TAGS=${
+                    !deviceConfig.availableTagsFile || deviceConfig.availableTagsFile.length == 0
+                        ? JSON.stringify(Array.from(deviceConfig.availableTags.values()))
+                        : ""
+                }
+    SIMULATE_TAGS=${deviceConfig.simulateTags ? 1 : 0}
+    AVAILABLE_ALARMS=${JSON.stringify(Array.from(deviceConfig.availableAlarms.values()))}
+    SIMULATE_ALARMS=${deviceConfig.simulateAlarms ? 1 : 0}
+    PACKET_FORMAT=${deviceConfig.packetFormat}`;
             }
-SIMULATE_TAGS=${deviceConfig.simulateTags ? 1 : 0}
-AVAILABLE_ALARMS=${JSON.stringify(Array.from(deviceConfig.availableAlarms.values()))}
-SIMULATE_ALARMS=${deviceConfig.simulateAlarms ? 1 : 0}
-PACKET_FORMAT=${deviceConfig.packetFormat}`;
+            fs.writeFileSync(envFile, currentContent);
         }
-        fs.writeFileSync(envFile, currentContent);
     }
 }

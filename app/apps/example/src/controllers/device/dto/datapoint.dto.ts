@@ -1,4 +1,4 @@
-import { DataPoint } from "../../../../../../libs/device-client/src/common/types";
+import { DataPoint } from "@corvina/device-client";
 
 export class DataPointDTO implements DataPoint {
     tagName: string; // tag name

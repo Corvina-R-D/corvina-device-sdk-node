@@ -30,7 +30,7 @@ describe("Publisher", () => {
     class SimpleDeviceService extends CorvinaDataInterface {
         private sender: MessageSender;
         constructor(sender: MessageSender) {
-            super();
+            super(sender);
             this.setCycleTime(1000);
             this.sender = sender;
         }

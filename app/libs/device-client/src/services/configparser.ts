@@ -1,4 +1,4 @@
-import { Logger as l } from "@nestjs/common";
+import { l } from "../services/logger.service";
 import { AggregatedMessagePublisher, MessagePublisher } from "./messagepublisher";
 import { MessageSubscriber } from "./messagesubscriber";
 import {
@@ -565,7 +565,7 @@ function initPublisher(
     sendPolicy: MappingSendPolicy,
     deviceConfig: DeviceConfiguration,
 ) {
-    l.verbose("Init publisher", sourceTag, sendPolicy);
+    l.debug("Init publisher %s %o", sourceTag, sendPolicy);
     const policy = parsePolicy({ type: "send", ...sendPolicy }, deviceConfig.namedPolicies);
     if (!policy) {
         return;
@@ -611,7 +611,7 @@ function parseDeviceConfigurationNode({
     arrayIndexes: number[];
     parentPublisher: MessagePublisher;
 }) {
-    //l.verbose("parseDeviceConfigurationNode", node, nodeName, parentNode, arrayIndexes);
+    //l.debug("parseDeviceConfigurationNode", node, nodeName, parentNode, arrayIndexes);
 
     const sourceTag =
         node.datalink && node.datalink.source ? indexTemplateApply(node.datalink.source, arrayIndexes) : undefined;
@@ -783,7 +783,7 @@ export default function parseDeviceConfig(config: DeviceConfigurationData): Devi
     }
 
     const configData: ConfigurationData = config.properties[Object.keys(config.properties)[0]];
-    l.verbose(`Parsing configuration data ${Object.keys(config.properties)[0]}`);
+    l.debug(`Parsing configuration data ${Object.keys(config.properties)[0]}`);
 
     // expect to have interfaces
     if (!configData.interfaces) {
@@ -794,12 +794,12 @@ export default function parseDeviceConfig(config: DeviceConfigurationData): Devi
     result.interfaceNames = configData.interfaces.map(
         (i) => `${i.interface_name}:${i.version_major}:${i.version_minor}`,
     );
-    l.log(`Found interfaces ${result.interfaceNames}`);
+    l.info(`Found interfaces ${result.interfaceNames}`);
 
     // parse global policy definitions
     if (configData.policies) {
         for (const p of Object.keys(configData.policies)) {
-            l.log(`Parsing policy ${p}`);
+            l.info(`Parsing policy ${p}`);
             const policyData = configData.policies[p];
             const policy = parsePolicy(policyData, result.namedPolicies);
             result.namedPolicies.set(p, policy);

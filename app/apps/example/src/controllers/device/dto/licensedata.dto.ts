@@ -1,4 +1,4 @@
-import { LicenseData } from "../../../../../../libs/device-client/src/services/licensesaxiosinstance";
+import { LicenseData } from "@corvina/device-client";
 
 export class LicenseDataDTO implements LicenseData {
     realm: string;

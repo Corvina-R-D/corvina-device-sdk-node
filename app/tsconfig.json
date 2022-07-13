@@ -3,6 +3,7 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "declaration": true,
+    "declarationMap": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
@@ -12,17 +13,6 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "skipLibCheck": true,
-    "esModuleInterop": true,
-    "typeRoots": [
-      "node_modules/@types"
-    ],
-    "paths": {
-      "@corvina/device-client": [
-        "libs/device-client/src"
-      ],
-      "@corvina/device-client/*": [
-        "libs/device-client/src/*"
-      ]
-    }
+    "esModuleInterop": true
   }
 }

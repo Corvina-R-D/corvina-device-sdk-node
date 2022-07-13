@@ -10,8 +10,8 @@ import {
     SimulationType,
     PacketFormatEnum,
     TagDesc,
-} from "../../../../../../libs/device-client/src/common/types";
-import { DeviceConfig } from "../../../../../../libs/device-client/src/services/device.service";
+} from "@corvina/device-client";
+import { DeviceConfig } from "@corvina/device-client";
 
 export class NullableSimulationStateMachineDTO implements NullableSimulationStateMachine {
     nullifying: boolean;
