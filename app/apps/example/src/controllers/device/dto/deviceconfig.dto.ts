@@ -10,8 +10,8 @@ import {
     SimulationType,
     PacketFormatEnum,
     TagDesc,
-} from "@corvina/corvina-device-sdk";
-import { DeviceConfig } from "@corvina/corvina-device-sdk";
+} from "@corvina/device-client";
+import { DeviceConfig } from "@corvina/device-client";
 
 export class NullableSimulationStateMachineDTO implements NullableSimulationStateMachine {
     nullifying: boolean;

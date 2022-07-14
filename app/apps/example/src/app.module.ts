@@ -2,7 +2,7 @@ import { TerminusModule } from "@nestjs/terminus";
 import { HealthController } from "./controllers/health.controller";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { DeviceClientModule } from "@corvina/corvina-device-sdk/device.module";
+import { DeviceClientModule } from "@corvina/device-client/device.module";
 import { DeviceHealthIndicator } from "./services/device.health";
 import { Config } from "./controllers/device/config.controller";
 import { Dice } from "./controllers/device/dice.controller";

@@ -1,4 +1,4 @@
-# Corvina simulated device example
+# Corvina device example
 
 This is an example of the usage of `@corvina/device-client`.
 

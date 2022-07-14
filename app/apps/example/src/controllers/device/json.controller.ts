@@ -1,6 +1,6 @@
 import { Logger, Controller, Injectable, Post, Query, Inject, Body, Param } from "@nestjs/common";
-import { DeviceService } from "@corvina/corvina-device-sdk";
-import { DataPoint } from "@corvina/corvina-device-sdk";
+import { DeviceService } from "@corvina/device-client";
+import { DataPoint } from "@corvina/device-client";
 import { ApiBody, ApiOperation, ApiQuery, ApiTags } from "@nestjs/swagger";
 import { DataPointDTO } from "./dto/datapoint.dto";
 import axios from "axios";

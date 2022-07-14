@@ -1,7 +1,7 @@
 {
-  "name": "@corvina/corvina-device-sdk",
+  "name": "@corvina/device-client",
   "version": "1.0.9",
-  "description": "Corvina NodeJS Device SDK",
+  "description": "Corvina NodeJS Device Client",
   "author": "arrigo.zanette@corvina.io",
   "license": "MIT",
   "files": [

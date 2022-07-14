@@ -1,5 +1,5 @@
 import { Controller } from "@nestjs/common";
-import { DeviceRunnerService } from "@corvina/corvina-device-sdk";
+import { DeviceRunnerService } from "@corvina/device-client";
 
 @Controller()
 export class AppController {

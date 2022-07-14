@@ -5,14 +5,14 @@
 Install the dependency:
 
 ```shell
-yarn install @corvina/device-sdk
+yarn install @corvina/device-client
 ```
 
 Run the device using the given runner:
 
 ```ts
 import 'dotenv/config'
-import { DeviceRunnerService, DeviceService } from '@corvina/corvina-device-sdk';
+import { DeviceRunnerService, DeviceService } from '@corvina/device-client';
 
 const devRunner = new DeviceRunnerService(new DeviceService());
 
@@ -26,7 +26,7 @@ The `DeviceRunnerService` is responsible for translating the environment configu
 In your app module, import the device client module:
 
 ```ts
-import { DeviceClientModule } from '@corvina/corvina-device-sdk/device.module';
+import { DeviceClientModule } from '@corvina/device-client/device.module';
 
 @Module({
   imports: [DeviceClientModule],
@@ -40,7 +40,7 @@ In your `main.ts` you can start the device using the `DeviceRunner` service.
 This service reads the configuration from a `.env` file.
 
 ```ts
-import { DeviceRunnerService } from '@corvina/corvina-device-sdk';
+import { DeviceRunnerService } from '@corvina/device-client';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

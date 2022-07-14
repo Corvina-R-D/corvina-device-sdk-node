@@ -1,4 +1,4 @@
-import { DeviceService, DeviceRunnerService } from "@corvina/corvina-device-sdk";
+import { DeviceService, DeviceRunnerService } from "@corvina/device-client";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import axios from "axios";

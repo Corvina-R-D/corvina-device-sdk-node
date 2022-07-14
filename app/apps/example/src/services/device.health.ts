@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { HealthIndicatorResult, HealthIndicator, HealthCheckError } from "@nestjs/terminus";
-import { DeviceService } from "@corvina/corvina-device-sdk";
+import { DeviceService } from "@corvina/device-client";
 
 @Injectable()
 export class DeviceHealthIndicator extends HealthIndicator {
