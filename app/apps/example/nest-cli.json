@@ -12,6 +12,5 @@
     "tsConfigPath": "tsconfig.app.json",
     "webpack": false
   },
-  "entryFile": "main",
-  "sourceRoot": "src"
+  "entryFile": "main"
 }
