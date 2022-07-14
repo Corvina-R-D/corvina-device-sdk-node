@@ -10,9 +10,9 @@
   ],
   "main": "index.js",
   "exports": {
-    ".": "./dist/index.js",
     "./": "./dist/"
   },
+  "types": "index.d.ts",
   "typesVersions": {
     "*": {
       "*": [
@@ -83,7 +83,7 @@
     "ts-jest": "^27.0.7",
     "ts-node": "^10.3.0",
     "tsconfig-paths": "^3.11.0",
-    "typescript": "^4.4.4"
+    "typescript": "^4.7.4"
   },
   "jest": {
     "moduleFileExtensions": [
@@ -99,6 +99,5 @@
     "coverageDirectory": "./coverage",
     "testEnvironment": "node"
   },
-  "types": "./dist/index.d.ts",
   "homepage": "https://github.com/corvina/corvina-device-sdk#readme"
 }

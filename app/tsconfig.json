@@ -12,9 +12,6 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "skipLibCheck": true,
-    "esModuleInterop": true,
-    "typeRoots": [
-      "node_modules/@types"
-    ]
+    "esModuleInterop": true
   }
 }

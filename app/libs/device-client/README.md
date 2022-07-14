@@ -11,7 +11,9 @@ yarn install @corvina/device-client
 Run the device using the given runner:
 
 ```ts
-import 'dotenv/config'
+import dotenv from "dotenv"
+dotenv.config()
+
 import { DeviceRunnerService, DeviceService } from '@corvina/device-client';
 
 const devRunner = new DeviceRunnerService(new DeviceService());
