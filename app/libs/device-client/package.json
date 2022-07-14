@@ -10,7 +10,7 @@
   ],
   "main": "index.js",
   "exports": {
-    ".": "./indexs.js",
+    ".": "./index.js",
     "./": "./dist/"
   },
   "types": "index.d.ts",
