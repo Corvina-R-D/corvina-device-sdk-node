@@ -1,9 +1,7 @@
 import { DeviceService } from "./services/device.service";
-import { Module, Logger } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import { DeviceRunnerService } from "./services/devicerunner.service";
 import { ConfigModule } from "@nestjs/config";
-import { setLogger } from "./services/logger.service";
-
 @Module({
     imports: [ConfigModule.forRoot()],
     controllers: [],
@@ -11,8 +9,6 @@ import { setLogger } from "./services/logger.service";
         {
             provide: DeviceService,
             useFactory: () => {
-                // use the default nestjs logger
-                setLogger(Logger);
                 return new DeviceService();
             },
         },

@@ -22,8 +22,8 @@ The last configuration is saved in `.env` after lines:
 | **AVAILABLE_ALARMS** | The JSON formatted list of alarms that can be triggered. The alarm description format is `{"name":"string","severity":1,"source":"string","desc":{"en":"Description with live tags [Tag1]"},"ack_required":true,"reset_required":true,"simulation":{ simulation_function_config}}` |
 | **PACKET_FORMAT** | The payload format (either 'bson' or 'json')  |
 | **SIMULATE_TAGS** | 0 or 1 to disable/enable tag simulation  |
-| **LOG_LEVEL** | Verbosity of logs : error, warning, info, debug |
-| **PORT** | The port the http server will listen for commands|
+| **LOG_LEVEL** | Verbosity of logs : error, warning, info, debug, trace |
+| **LOG_CONTEXT** | Context identifier for logs |
 |  |  |
 
 ### Simulation configuration

@@ -565,7 +565,7 @@ function initPublisher(
     sendPolicy: MappingSendPolicy,
     deviceConfig: DeviceConfiguration,
 ) {
-    l.debug("Init publisher", sourceTag, sendPolicy);
+    l.debug("Init publisher %s %o", sourceTag, sendPolicy);
     const policy = parsePolicy({ type: "send", ...sendPolicy }, deviceConfig.namedPolicies);
     if (!policy) {
         return;
@@ -794,12 +794,12 @@ export default function parseDeviceConfig(config: DeviceConfigurationData): Devi
     result.interfaceNames = configData.interfaces.map(
         (i) => `${i.interface_name}:${i.version_major}:${i.version_minor}`,
     );
-    l.log(`Found interfaces ${result.interfaceNames}`);
+    l.info(`Found interfaces ${result.interfaceNames}`);
 
     // parse global policy definitions
     if (configData.policies) {
         for (const p of Object.keys(configData.policies)) {
-            l.log(`Parsing policy ${p}`);
+            l.info(`Parsing policy ${p}`);
             const policyData = configData.policies[p];
             const policy = parsePolicy(policyData, result.namedPolicies);
             result.namedPolicies.set(p, policy);

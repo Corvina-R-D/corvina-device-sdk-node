@@ -16,11 +16,11 @@
     "./bin/corvina-device-example": "./bin/corvina-device-example.js"
   },
   "scripts": {
-    "build": "nest build",
+    "build": "tsc -b ./tsconfig.app.json",
     "prebuild": "rimraf dist",
     "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
+    "start:dev": "tsc -b ./tsconfig.app.json && nest start",
+    "start:debug": "tsc-watch -b ./tsconfig.app.json  --onSuccess \"nest start\"",
     "start:prod": "node dist/main",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -36,11 +36,17 @@
     "@nestjs/terminus": "^9.0.0",
     "@nestjs/testing": "^9.0.3",
     "axios": "^0.27.2",
-    "supertest": "^6.2.4"
+    "nestjs-pino": "^2.6.0",
+    "pino-http": "^8.1.1"
   },
   "keywords": [
     "corvina",
     "iot"
   ],
-  "bin": "./bin/corvina-device-example.js"
+  "bin": "./bin/corvina-device-example.js",
+  "devDependencies": {
+    "pino-pretty": "^8.1.0",
+    "supertest": "^6.2.4",
+    "typescript": "^4.7.4"
+  }
 }

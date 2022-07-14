@@ -23,7 +23,7 @@ export class DeviceRunnerService implements DeviceRunner {
     }
 
     constructor(private deviceService: DeviceService) {
-        console.log("Creating device runner service");
+        // do nothing
     }
 
     run() {
@@ -76,29 +76,31 @@ export class DeviceRunnerService implements DeviceRunner {
             true,
         );
 
-        // save data to file
-        const envFile = path.join(process.cwd(), ".env");
-        let currentContent = fs.readFileSync(envFile).toString();
-        const appendedValuesPos = currentContent.indexOf("### LAST-ENV ###");
-        const deviceConfig = this.deviceService.deviceConfig;
-        if (appendedValuesPos > 0) {
-            currentContent = currentContent.slice(0, appendedValuesPos);
-            currentContent += `
-### LAST-ENV ###
-# don't write below this line!!
-ACTIVATION_KEY=${deviceConfig.activationKey}
-PAIRING_ENDPOINT=${deviceConfig.pairingEndpoint}
-AVAILABLE_TAGS_FILE=${deviceConfig.availableTagsFile || ""}
-AVAILABLE_TAGS=${
-                !deviceConfig.availableTagsFile || deviceConfig.availableTagsFile.length == 0
-                    ? JSON.stringify(Array.from(deviceConfig.availableTags.values()))
-                    : ""
+        if (process.env.SAVE_LAST_ENV) {
+            // save data to file
+            const envFile = path.join(process.cwd(), ".env");
+            let currentContent = fs.readFileSync(envFile).toString();
+            const appendedValuesPos = currentContent.indexOf("### LAST-ENV ###");
+            const deviceConfig = this.deviceService.deviceConfig;
+            if (appendedValuesPos > 0) {
+                currentContent = currentContent.slice(0, appendedValuesPos);
+                currentContent += `
+    ### LAST-ENV ###
+    # don't write below this line!!
+    ACTIVATION_KEY=${deviceConfig.activationKey}
+    PAIRING_ENDPOINT=${deviceConfig.pairingEndpoint}
+    AVAILABLE_TAGS_FILE=${deviceConfig.availableTagsFile || ""}
+    AVAILABLE_TAGS=${
+                    !deviceConfig.availableTagsFile || deviceConfig.availableTagsFile.length == 0
+                        ? JSON.stringify(Array.from(deviceConfig.availableTags.values()))
+                        : ""
+                }
+    SIMULATE_TAGS=${deviceConfig.simulateTags ? 1 : 0}
+    AVAILABLE_ALARMS=${JSON.stringify(Array.from(deviceConfig.availableAlarms.values()))}
+    SIMULATE_ALARMS=${deviceConfig.simulateAlarms ? 1 : 0}
+    PACKET_FORMAT=${deviceConfig.packetFormat}`;
             }
-SIMULATE_TAGS=${deviceConfig.simulateTags ? 1 : 0}
-AVAILABLE_ALARMS=${JSON.stringify(Array.from(deviceConfig.availableAlarms.values()))}
-SIMULATE_ALARMS=${deviceConfig.simulateAlarms ? 1 : 0}
-PACKET_FORMAT=${deviceConfig.packetFormat}`;
+            fs.writeFileSync(envFile, currentContent);
         }
-        fs.writeFileSync(envFile, currentContent);
     }
 }

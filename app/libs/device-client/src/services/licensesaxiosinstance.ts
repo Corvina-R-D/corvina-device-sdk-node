@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
+import { l } from "./logger.service";
 
 export interface LicenseData {
     realm: string;
@@ -71,7 +72,7 @@ export class LicensesAxiosInstance {
     constructor(pairingEndpoint: string, activationKey: string) {
         this.pairingEndpoint = pairingEndpoint;
         this.actitvationKey = activationKey;
-        console.log("License manager pairing endpoint ", this.pairingEndpoint);
+        l.info(`License manager pairing endpoint ${this.pairingEndpoint}`);
         this.axiosInstance.defaults.baseURL = this.pairingEndpoint;
     }
 

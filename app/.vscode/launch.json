@@ -10,8 +10,7 @@
       "name": "Debug Example Device",
       "runtimeExecutable": "yarn",
       "runtimeArgs": [
-        "start:debug",
-        "example"
+        "start:debug"
       ],
       "sourceMaps": true,
       "envFile": "${workspaceFolder}/apps/example/.env",
