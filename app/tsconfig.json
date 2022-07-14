@@ -15,14 +15,6 @@
     "esModuleInterop": true,
     "typeRoots": [
       "node_modules/@types"
-    ],
-    "paths": {
-      "@corvina/device-client": [
-        "libs/device-client/src"
-      ],
-      "@corvina/device-client/*": [
-        "libs/device-client/src/*"
-      ]
-    }
+    ]
   }
 }
