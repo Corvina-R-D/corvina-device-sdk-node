@@ -7,6 +7,14 @@
   "publishConfig": {
     "access": "public"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://bitbucket.org/exorint/corvina-device-sdk-node.git"
+  },
+  "bugs": {
+    "url": "https://bitbucket.org/exorint/corvina-device-sdk-node.git"
+  },
+  "homepage": "https://bitbucket.org/exorint/corvina-device-sdk-node/src/master/app/apps/example/",
   "main": "./dist/main.js",
   "exports": {
     ".": {
@@ -49,12 +57,5 @@
     "supertest": "^6.2.4",
     "tsc-watch": "^5.0.3",
     "typescript": "^4.7.4"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://bitbucket.org/exorint/corvina-device-sdk-node.git"
-  },
-  "bugs": {
-    "url": "git clone https://bitbucket.org/exorint/corvina-device-sdk-node.git"
   }
 }

@@ -44,8 +44,9 @@
     "url": "https://bitbucket.org/exorint/corvina-device-sdk-node.git"
   },
   "bugs": {
-    "url": "git clone https://bitbucket.org/exorint/corvina-device-sdk-node.git"
+    "url": "https://bitbucket.org/exorint/corvina-device-sdk-node.git"
   },
+  "homepage": "https://bitbucket.org/exorint/corvina-device-sdk-node/src/master/app/libs/device-client/",
   "dependencies": {
     "@nestjs/common": "^9.0.3",
     "@nestjs/config": "^2.2.0",
@@ -100,6 +101,5 @@
     },
     "coverageDirectory": "./coverage",
     "testEnvironment": "node"
-  },
-  "homepage": "https://github.com/corvina/corvina-device-sdk#readme"
+  }
 }
