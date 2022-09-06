@@ -41,10 +41,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/corvina/corvina-device-sdk.git"
+    "url": "https://bitbucket.org/exorint/corvina-device-sdk-node.git"
   },
   "bugs": {
-    "url": "https://github.com/corvina/corvina-device-sdk"
+    "url": "git clone https://bitbucket.org/exorint/corvina-device-sdk-node.git"
   },
   "dependencies": {
     "@nestjs/common": "^9.0.3",
