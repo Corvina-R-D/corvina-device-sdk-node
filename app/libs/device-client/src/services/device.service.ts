@@ -575,9 +575,11 @@ export class DeviceService extends EventEmitter {
                 } as TagDesc);
                 this.throttledUpdateAvailableTags();
             }
-            this.dataInterface.notifyTag(decoratedName, new State(value, ts), options);
+            if (this.dataInterface.config) {
+                this.dataInterface.notifyTag(decoratedName, new State(value, ts), options);
+            }
         });
-        if (prefix.length > 0) {
+        if (this.dataInterface.config && prefix.length > 0) {
             this.dataInterface.notifyTag(prefix.slice(0, -1), new State(rootValue, ts), options);
         }
     };
@@ -596,14 +598,8 @@ export class DeviceService extends EventEmitter {
             l.info(err);
             return false;
         }
-        if (!this.dataInterface.config) {
-            const err = `Cannot process ${JSON.stringify(dataPoints)}. Device is not configured yet!`;
-            l.info(err);
-            if (options?.cb) {
-                options.cb(new Error(err), undefined, undefined);
-            }
-            return false;
-        }
+
+        // notify the tags (if configured) and update available tags
         for (const dp of dataPoints) {
             if (dp.tagName == undefined) {
                 assert(_.isObject(dp.value));
@@ -613,10 +609,22 @@ export class DeviceService extends EventEmitter {
                 if (_.isObject(dp.value) && !options?.recurseNotifyOnlyWholeObject) {
                     this.recurseNotifyObject(dp.tagName + ".", dp.value, dp.timestamp, options);
                 } else {
-                    // try to notify whole object
-                    this.dataInterface.notifyTag(dp.tagName as string, new State(dp.value, dp.timestamp), options);
+                    if (this.dataInterface.config) {
+                        // try to notify whole object
+                        this.dataInterface.notifyTag(dp.tagName as string, new State(dp.value, dp.timestamp), options);
+                    }
                 }
             }
+        }
+
+        // notify error if not yet configured
+        if (!this.dataInterface.config) {
+            const err = `Cannot process ${JSON.stringify(dataPoints)}. Device is not configured yet!`;
+            l.info(err);
+            if (options?.cb) {
+                options.cb(new Error(err), undefined, undefined);
+            }
+            return false;
         }
 
         return true;
