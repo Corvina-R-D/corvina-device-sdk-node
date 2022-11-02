@@ -580,7 +580,7 @@ export class DeviceService extends EventEmitter {
             }
         });
         if (this.dataInterface.config && prefix.length > 0) {
-            this.dataInterface.notifyTag(prefix.slice(0, -1), new State(rootValue, ts), options);
+            this.dataInterface.notifyTag(prefix.endsWith(".") ? prefix.slice(0, -1) : prefix, new State(rootValue, ts), options);
         }
     };
 

@@ -104,6 +104,34 @@ export enum PacketFormatEnum {
     BSON = "bson",
 }
 
+const castToBoolean = (value) : boolean => {
+    if (typeof value == "string") {
+        if (value == "true") {
+            return true;
+        } else if (value == "false") {
+            return false;
+        } else {
+            return !!~~value;
+        }
+    }
+    return !!value;
+}
+
+const castToString = (value) : string => {
+    return "" + value;
+}
+
+const castToDouble = (value) : number => {
+    return parseFloat(value);
+}
+
+const castToInteger = (value) : number => {
+    if (typeof value == "string") {
+        value = parseInt(value);
+    }
+    return ~~value;
+}
+
 export function castCorvinaType(value: any, topicType: string) {
     if (value == undefined) {
         return undefined;
@@ -113,23 +141,44 @@ export function castCorvinaType(value: any, topicType: string) {
     }
     switch (topicType) {
         case "integer":
-            return ~~value;
+            return castToInteger(value);
         case "boolean":
-            if (typeof value == "string") {
-                if (value == "true") {
-                    return true;
-                } else if (value == "false") {
-                    return false;
-                } else {
-                    return !!~~value;
-                }
-            }
-            return !!value;
+            return castToBoolean(value)
         case "string":
-            return "" + value;
+            return castToString(value)
         case "double":
-            return parseFloat(value);
+            return castToDouble(value);
         case "struct":
+            break;
+        case "doublearray":
+            if (typeof value == "string") {
+                value = JSON.parse(value);
+            }
+            if (Array.isArray(value)) {
+                value = value.map((v) => castToDouble(v));
+            } else {
+                throw `Cannot cast ${value} to integerarray`
+            }
+            break;
+        case "booleanarray":
+            if (typeof value == "string") {
+                value = JSON.parse(value);
+            }
+            if (Array.isArray(value)) {
+                value = value.map((v) => castToBoolean(v));
+            } else {
+                throw `Cannot cast ${value} to integerarray`
+            }
+            break;
+        case "integerarray":
+            if (typeof value == "string") {
+                value = JSON.parse(value);
+            }
+            if (Array.isArray(value)) {
+                value = value.map((v) => castToInteger(v));
+            } else {
+                throw `Cannot cast ${value} to integerarray`
+            }
             break;
         default:
             throw "Unsupported data type " + topicType;
