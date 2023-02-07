@@ -17,9 +17,10 @@ export class Config {
         summary: "Applied a new device configuration",
     })
     @Post("/config")
-    config(@Body("newConfig") newConfig: DeviceConfigDTO): DeviceConfigDTO {
+    config(@Body("newConfig") newConfig: DeviceConfig): DeviceConfigDTO {
         this.l.log("apply new config");
-        //this.deviceService.reinit(newConfig);
+        // <DeviceConfigDTO>newConfig.toDeviceConfig(); methods are not available ...?
+        this.deviceService.reinit(newConfig);
         return new DeviceConfigDTO(this.deviceService.getDeviceConfig());
     }
 

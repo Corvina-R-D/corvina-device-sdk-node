@@ -160,7 +160,7 @@ export class DeviceService extends EventEmitter {
     }
 
     public isConnected() {
-        return this.mqttClient.connected;
+        return this.mqttClient && this.mqttClient.connected;
     }
 
     private setReady(ready: boolean) {
