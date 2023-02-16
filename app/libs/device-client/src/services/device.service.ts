@@ -647,6 +647,7 @@ export class DeviceService extends EventEmitter {
             topic: subscriber.topic,
             modelPath: subscriber.modelPath,
             fieldName: subscriber.fieldName,
+            tagName: subscriber.targetTag, 
             v: castCorvinaType(message.v, subscriber.topicType),
         });
     }

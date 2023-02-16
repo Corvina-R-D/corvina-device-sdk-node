@@ -20,16 +20,16 @@ The device can be started:
 
 * via package manager:
 
-```
+```shell
 npm install @corvina/device-example
 
-npm @corvina/device-example
+npx @corvina/device-example
 ```
 
 * via `npx` (version >= 8)
 
 ```shell
-npx @corvina/device-example
+npx @corvina/device-example@latest
 ```
 
 * from sources:

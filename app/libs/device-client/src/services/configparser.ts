@@ -663,6 +663,7 @@ function parseDeviceConfigurationNode({
                         topic: server_endpoint,
                         modelPath: nodePath,
                         topicType: node.type,
+                        targetTag: node?.datalink?.source
                     }),
                 );
             }
@@ -715,6 +716,7 @@ function parseDeviceConfigurationNode({
                             topic: server_endpoint,
                             modelPath: nodePath,
                             topicType: node.type,
+                            targetTag: node?.datalink?.source
                         }),
                     );
                 }
@@ -753,6 +755,7 @@ function parseDeviceConfigurationNode({
                             modelPath: nodePath,
                             topicType: node.type,
                             fieldName: nodeName,
+                            targetTag: node?.datalink?.source
                         }),
                     );
                 }

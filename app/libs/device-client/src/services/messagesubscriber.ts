@@ -4,22 +4,26 @@ export class MessageSubscriber {
     private _modelPath: string;
     private _topicType: string;
     private _fieldName: string;
+    private _targetTag: string;
 
     constructor({
         topic,
         modelPath,
         topicType,
         fieldName,
+        targetTag,
     }: {
         topic: string;
         modelPath: string;
         topicType: string;
         fieldName?: string;
+        targetTag: string;
     }) {
         this._topic = topic;
         this._modelPath = modelPath;
         this._topicType = topicType;
         this._fieldName = fieldName;
+        this._targetTag = targetTag;
     }
 
     get topic(): string {
@@ -36,6 +40,10 @@ export class MessageSubscriber {
 
     get fieldName(): string {
         return this._fieldName;
+    }
+
+    get targetTag(): string {
+        return this._targetTag;
     }
 
     toString(): string {

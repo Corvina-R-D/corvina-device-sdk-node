@@ -4,7 +4,7 @@ import axios from "axios";
 import { AppModule } from "./app.module";
 import { Logger, LoggerService } from "@nestjs/common";
 import { Logger as NestPinoLogger } from "nestjs-pino";
-import { DeviceService, DeviceRunnerService } from "@corvina/device-client";
+import { DataPoint, DeviceService, DeviceRunnerService } from "@corvina/device-client";
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule, {
@@ -44,10 +44,24 @@ async function bootstrap() {
     });
 
     device.on("write", (event) => {
-        l.log("Write event received", event);
-        if (process.env["WRITE_CALLBACK"]) {
-            axios.post(process.env["WRITE_CALLBACK"], event).catch((err) => "Error executing write callback");
-        }
+        l.log(`Write event received ${JSON.stringify(event)}`);
+
+        const t = Date.now();
+        const dataPoints = new Array<DataPoint>();
+        const dp: DataPoint = {
+            tagName: event.tagName,
+            value: event.v,
+            timestamp: t,
+        };
+        dataPoints.push(dp);
+        device.post(dataPoints, {
+            qos: 0,
+            cb: process.env["WRITE_CALLBACK"]
+                ? (error, tagName, modelPath) => {
+                    axios.post(process.env["WRITE_CALLBACK"], event).catch((err) => "Error executing write callback");
+                }
+                : undefined,
+        });
     });
 }
 bootstrap();

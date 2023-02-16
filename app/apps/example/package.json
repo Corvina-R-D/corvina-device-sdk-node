@@ -53,6 +53,7 @@
   ],
   "bin": "./bin/corvina-device-example.js",
   "devDependencies": {
+    "@nestjs/cli": "^9.2.0",
     "pino-pretty": "^8.1.0",
     "supertest": "^6.2.4",
     "tsc-watch": "^5.0.3",
