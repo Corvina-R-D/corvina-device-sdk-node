@@ -1,6 +1,6 @@
 {
   "name": "@corvina/device-example",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Corvina Device Example base on @corvina/device-client",
   "author": "arrigo.zanette@corvina.io",
   "license": "MIT",
