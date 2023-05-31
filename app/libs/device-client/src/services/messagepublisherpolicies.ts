@@ -168,7 +168,7 @@ export class MessagePublisher_AndPolicy extends MessagePublisher_OperatorPolicy 
         this._nextTime = 0;
         this._operands.forEach((o) => {
             const bTime = o.updateState({ tagName, newState, currentTime });
-            this._nextTime = this._nextTime < bTime ? bTime : this._nextTime;
+            this._nextTime = this._nextTime < bTime ? this._nextTime : bTime;
         });
         return this._nextTime;
     }
@@ -177,7 +177,7 @@ export class MessagePublisher_AndPolicy extends MessagePublisher_OperatorPolicy 
         this._nextTime = 0;
         this._operands.forEach((o) => {
             const bTime = o.rearm(currentTime);
-            this._nextTime = this._nextTime < bTime ? bTime : this._nextTime;
+            this._nextTime = this._nextTime < bTime ? this._nextTime : bTime;
         });
         return this._nextTime;
     }
@@ -365,7 +365,7 @@ export class MessagePublisher_OnChangedPolicy extends MessagePublisher_TagBasedP
         if (this._changeMask & ChangeMask.ValueChange && newState.quality == Quality.GOOD) {
             if (_.isArray(newState.value)) {
                 triggered =
-                    newState.value.length != this._lastState.value.length ||
+                    newState.value.length != this._lastState?.value?.length ||
                     newState.value.reduce((acc, v, i) => {
                         return triggered || this.isOutOfDeadband(v, this._lastState[i]);
                     }, triggered);

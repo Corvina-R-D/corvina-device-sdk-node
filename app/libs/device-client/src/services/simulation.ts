@@ -301,6 +301,18 @@ export class DataSimulator extends BaseSimulator {
                     case "string":
                         this.value = Math.random().toString();
                         break;
+                    case "integerarray":
+                        this.value = _.range(0, 10).map((x) => (Math.round(Math.random() * this.defAmplitude)));
+                        break;
+                    case "doublearray":
+                        this.value = _.range(0, 10).map((x) => (Math.random() * this.defAmplitude));
+                        break;
+                    case "stringarray":
+                        this.value = _.range(0, 10).map((x) => (Number(Math.random() * this.defAmplitude).toFixed()));
+                        break;
+                    case "booleanarray":
+                        this.value = _.range(0, 10).map((x) => Math.random()> 0.5);
+                        break;
                     default:
                         throw "Unsupported type " + this.type;
                 }
@@ -341,6 +353,13 @@ export class DataSimulator extends BaseSimulator {
                                             ? noised
                                             : JSON.stringify(noised);
                                     break;
+                                case "integerarray":
+                                case "doublearray":
+                                    this.value = Array.isArray(this.value) ? this.value : [Number(this.value)];
+                                    break;
+                                case "booleanarray":
+                                    this.value = Array.isArray(this.value) ? this.value.map(v=>v==true) : [this.value==true];
+                                    break;
                                 default:
                                     throw "Unsupported type " + this.type;
                             }
@@ -366,6 +385,13 @@ export class DataSimulator extends BaseSimulator {
                                         typeof noised == "string" || (noised as any) instanceof String
                                             ? noised
                                             : JSON.stringify(noised);
+                                    break;
+                                case "integerarray":
+                                case "doublearray":
+                                    this.value = Array.isArray(this.value) ? this.value : [Number(this.value)];
+                                    break;
+                                case "booleanarray":
+                                    this.value = Array.isArray(this.value) ? this.value.map(v=>v==true) : [this.value==true];
                                     break;
                                 default:
                                     throw "Unsupported type " + this.type;
@@ -503,7 +529,9 @@ export class DataSimulator extends BaseSimulator {
                 if (this.callback && (await this.callback(this.tag, this.value, ts))) {
                     this.lastSentValue = this.value;
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.log(e);
+            }
         }
     }
 
