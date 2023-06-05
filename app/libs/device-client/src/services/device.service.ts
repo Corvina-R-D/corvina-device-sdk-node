@@ -602,11 +602,11 @@ export class DeviceService extends EventEmitter {
         // notify the tags (if configured) and update available tags
         for (const dp of dataPoints) {
             if (dp.tagName == undefined) {
-                assert(_.isObject(dp.value));
+                assert(_.isObject(dp.value) && !_.isArray(dp.value));
                 this.recurseNotifyObject("", dp.value, dp.timestamp, options);
             } else {
                 // else notify single components
-                if (_.isObject(dp.value) && !options?.recurseNotifyOnlyWholeObject) {
+                if (_.isObject(dp.value) && !options?.recurseNotifyOnlyWholeObject && !_.isArray(dp.value)) {
                     this.recurseNotifyObject(dp.tagName + ".", dp.value, dp.timestamp, options);
                 } else {
                     if (this.dataInterface.config) {
