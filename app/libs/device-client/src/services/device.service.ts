@@ -455,8 +455,12 @@ export class DeviceService extends EventEmitter {
             //const mqtt_protocol_name = Object.keys(info.protocols)[0]
             //const mqtt_protocol = info.protocols[mqtt_protocol_name]
 
+            l.info({ msg: "CSR created", csr });
+
             // sign the certificate
             const crt: CrtData = await this.axios.doPairing(csr.csr);
+
+            l.info({ msg: "Certificate signed", crt });
 
             // verify the certificate
             assert(await this.axios.verify(crt.client_crt));
@@ -580,7 +584,11 @@ export class DeviceService extends EventEmitter {
             }
         });
         if (this.dataInterface.config && prefix.length > 0) {
-            this.dataInterface.notifyTag(prefix.endsWith(".") ? prefix.slice(0, -1) : prefix, new State(rootValue, ts), options);
+            this.dataInterface.notifyTag(
+                prefix.endsWith(".") ? prefix.slice(0, -1) : prefix,
+                new State(rootValue, ts),
+                options,
+            );
         }
     };
 
@@ -647,7 +655,7 @@ export class DeviceService extends EventEmitter {
             topic: subscriber.topic,
             modelPath: subscriber.modelPath,
             fieldName: subscriber.fieldName,
-            tagName: subscriber.targetTag, 
+            tagName: subscriber.targetTag,
             v: castCorvinaType(message.v, subscriber.topicType),
         });
     }
