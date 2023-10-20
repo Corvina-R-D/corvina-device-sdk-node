@@ -1,6 +1,7 @@
 # Corvina simulated device
 
 ```bash
+cp -n ./.env.example ./app/apps/example/.env
 docker build -t corvina-node-device .
 docker run --rm -e ACTIVATION_KEY=activation_key -ti corvina-node-device
 ```
