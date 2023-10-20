@@ -1,4 +1,4 @@
-FROM node:14-alpine as builder
+FROM eu.gcr.io/corvina-exorint/corvina-base-node18:v2 as builder
 
 WORKDIR /app
 ADD ./app/package.json .
@@ -11,9 +11,7 @@ RUN find -iname .env -exec rm {} \;
 RUN cd ./apps/example && yarn install && yarn build
 
 # Note: it is important to keep Debian versions in sync, or incompatibilities between libcrypto will happen
-FROM node:14-alpine
-
-RUN apk update && apk add openssl
+FROM eu.gcr.io/corvina-exorint/corvina-base-node18:v2
 
 # Set the locale
 ENV LANG C.UTF-8
