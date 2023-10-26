@@ -17,5 +17,8 @@ services:
       - "appengine.api.platform.corvina.fog:${HOST_IP:-127.0.0.1}"
       - "api.platform.corvina.fog:${HOST_IP:-127.0.0.1}"
     restart: always
+    environment:
+      - ACTIVATION_KEY=<paste-your-activation-key-here>
+      - PAIRING_ENDPOINT=https://pairing.corvina.io/api/v1/
 #    volumes:
 #      - ./app/server:/app/server

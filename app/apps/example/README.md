@@ -15,14 +15,17 @@ ACTIVATION_KEY=<your_device_activation_key>
 PAIRING_ENDPOINT=https://pairing.corvina.io/api/v1/ 
 ```
 
-
 The device can be started:
 
 * via package manager:
 
 ```shell
 npm install @corvina/device-example
+```
 
+chande directory to `./app/apps/example` and run:
+
+```shell
 npx @corvina/device-example
 ```
 
@@ -34,9 +37,10 @@ npx @corvina/device-example@latest
 
 * from sources:
 
+chande directory to `./app/apps/example` and run:
+
 ```shell
 yarn install
-
 yarn start:dev
 ```
 
