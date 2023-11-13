@@ -2,11 +2,6 @@
 
 ## Running the example
 
-### Activation key
-
-To get a new license [go to](https://licenses.corvina.fog:10443/) then click on "Generate new license" button, leave any field blank and click "Save" button.
-It will show the generated license code, copy and use it as activation key.
-
 ```bash
 cp -n ./app/.env.example ./app/apps/example/.env
 ```
