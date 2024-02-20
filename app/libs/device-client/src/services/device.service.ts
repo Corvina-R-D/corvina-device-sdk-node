@@ -235,7 +235,7 @@ export class DeviceService extends EventEmitter {
 
         return new Promise((resolve, reject) => {
             const mqttClientOptions: IClientOptions = {};
-            mqttClientOptions.rejectUnauthorized = false;
+            mqttClientOptions.rejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED == "0";
             mqttClientOptions.key = key;
             mqttClientOptions.cert = crt;
             mqttClientOptions.clean = true;
