@@ -146,6 +146,7 @@ export class DeviceService extends EventEmitter {
         this.lastConfig = "";
         Object.assign(this._deviceConfig, deviceConfig);
         this._deviceConfig.dynamicTags = new Map<string, TagDesc>();
+        l.info("Init with %j", this._deviceConfig);
         this.axios = new LicensesAxiosInstance(this._deviceConfig.pairingEndpoint, this._deviceConfig.activationKey);
         this.init();
         return this._deviceConfig;
@@ -215,6 +216,7 @@ export class DeviceService extends EventEmitter {
 
         this.lastConfig = config;
         setTimeout(async () => {
+            l.debug("Going to end mqtt client");
             await this.mqttClient.end();
             setTimeout(async () => await this.mqttClient.reconnect(), 1000);
         }, 0);
@@ -229,22 +231,27 @@ export class DeviceService extends EventEmitter {
     }
 
     private connectClient(broker_url: string, key: string, crt: string): Promise<any> {
+        l.info("Connecting to mqtt broker %s", broker_url);
+
         return new Promise((resolve, reject) => {
             const mqttClientOptions: IClientOptions = {};
-            mqttClientOptions.rejectUnauthorized = false;
+            mqttClientOptions.rejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED !== "0";
             mqttClientOptions.key = key;
             mqttClientOptions.cert = crt;
             mqttClientOptions.clean = true;
             mqttClientOptions.clientId = x509.parseCert(crt).subject.commonName;
             mqttClientOptions.reconnectPeriod = 10000;
+            l.debug(mqttClientOptions, "MQTT options");
             this.mqttClient = mqtt.connect(broker_url, mqttClientOptions);
 
-            this.subscribeChannel(this.consumerPropertiesTopic);
-            this.subscribeChannel(this.applyConfigTopic);
-            this.subscribeChannel(this.actionAlarmTopic);
+            l.debug("MQTT client created");
 
             this.mqttClient.on("connect", async (v) => {
                 l.info("Successfully connected to mqtt broker!", JSON.stringify(v));
+
+                this.subscribeChannel(this.consumerPropertiesTopic);
+                this.subscribeChannel(this.applyConfigTopic);
+                this.subscribeChannel(this.actionAlarmTopic);
 
                 l.debug("Published introspection " + DeviceService.baseIntrospection + this.customIntrospections);
                 await this.sendStringMessage(
@@ -312,18 +319,18 @@ export class DeviceService extends EventEmitter {
                 resolve(true);
             });
 
-            this.mqttClient.on("close", (v) => {
+            this.mqttClient.on("close", () => {
                 DataSimulator.clear();
-                l.warn("Stream closed! %j", v);
+                l.warn("Stream closed!");
             });
 
-            this.mqttClient.on("reconnect", (v) => {
+            this.mqttClient.on("reconnect", () => {
                 DataSimulator.clear();
-                l.warn("Stream reconnected! %j", v);
+                l.warn("Stream reconnected!");
             });
 
             this.mqttClient.on("error", (error) => {
-                l.error("Stream error! %j", error);
+                l.error(error, "Stream error!");
                 this.lastTriedBrokerEndpoint++;
                 reject(error);
             });
@@ -377,7 +384,7 @@ export class DeviceService extends EventEmitter {
                 if (!err) {
                     resolve(true);
                 } else {
-                    l.warn(`Error subscribing ${channel}: %j`, err);
+                    l.warn(err, `Error subscribing %s`, channel);
                     reject(err);
                 }
             });
