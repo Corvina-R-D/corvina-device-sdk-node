@@ -24,6 +24,8 @@ The last configuration is saved in `.env` after lines:
 | **SIMULATE_TAGS** | 0 or 1 to disable/enable tag simulation  |
 | **LOG_LEVEL** | Verbosity of logs : error, warning, info, debug, trace |
 | **LOG_CONTEXT** | Context identifier for logs |
+| **BROKER_CA_FILE** | The broker CA file (by default the common Corvina CA is used ). If `NODE_TLS_REJECT_UNAUTHORIZED` is set to zero, also the mqtt connection won't validate the server certificate and this option is ignored. |
+| **ONLY_TEST_CONNECTION** | If set to "true" exits immediately after having established a successful connection with the MQTT broker |
 |  |  |
 
 ### Simulation configuration

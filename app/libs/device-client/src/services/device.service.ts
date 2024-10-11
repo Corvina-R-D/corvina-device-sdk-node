@@ -1,6 +1,7 @@
 import { castCorvinaType, PacketFormatEnum } from "./../common/types";
 import { State } from "./messagepublisherpolicies";
 import pem from "pem";
+import fs from "fs";
 import LicensesAxiosInstance, { LicenseData, CrtData } from "./licensesaxiosinstance";
 import mqtt, { IClientOptions, IClientPublishOptions, MqttClient } from "mqtt";
 import BSON from "bson";
@@ -15,6 +16,9 @@ import { InternalMessageSenderOptions, MessageSenderOptions } from "./messagesen
 import { l } from "./logger.service";
 import { MessageSubscriber } from "./messagesubscriber";
 import { EventEmitter } from "stream";
+import { get } from "http";
+import * as https from 'https';
+
 
 const x509 = require("x509.js");
 
@@ -22,6 +26,8 @@ interface CSRData {
     csr: string;
     clientKey: string;
 }
+
+const ONLY_TEST_CONNECTION = process.env["ONLY_TEST_CONNECTION"] === "true" || false;
 
 export { PostCallback } from "./corvinadatainterface";
 
@@ -92,6 +98,16 @@ export class DeviceService extends EventEmitter {
         this.dataInterface = new CorvinaDataInterface({
             sendMessage: this.sendMessage.bind(this),
         });
+
+        if (process.env["NODE_TLS_REJECT_UNAUTHORIZED"] !== "0") {
+            let currentCa = https.globalAgent?.options?.ca;
+            if (currentCa) {
+                currentCa = currentCa + "\n" + this.getCA();
+            } else {
+                currentCa = this.getCA();
+            }
+            https.globalAgent.options.ca = currentCa;
+        }
     }
 
     get status(): DeviceStatus {
@@ -230,12 +246,39 @@ export class DeviceService extends EventEmitter {
         }
     }
 
+    private getCA() : string | Buffer {
+        if (process.env["BROKER_CA_FILE"]) {
+            try {
+                return fs.readFileSync(process.env["BROKER_CA_FILE"]);
+            } catch (e) {
+                l.error("Error reading CA file: %s", e);
+                return "";
+            }
+        }
+        return `-----BEGIN CERTIFICATE-----
+MIICWTCCAf+gAwIBAgIUAkkMEwP0AejpBDLeXUiBRJSDv7UwCgYIKoZIzj0EAwIw
+eTELMAkGA1UEBhMCSVQxDjAMBgNVBAgMBUl0YWx5MSgwJgYDVQQKDB9FeG9yIERl
+dmljZXMgRGlnaXRhbCBJZGVudGl0aWVzMTAwLgYDVQQDDCdFeG9yIERldmljZXMg
+RGlnaXRhbCBJZGVudGl0aWVzIFJvb3QgQ0EwIBcNMjAxMjEwMTAwOTQ5WhgPMjA2
+MjAxMDQxMDA5NDlaMHkxCzAJBgNVBAYTAklUMQ4wDAYDVQQIDAVJdGFseTEoMCYG
+A1UECgwfRXhvciBEZXZpY2VzIERpZ2l0YWwgSWRlbnRpdGllczEwMC4GA1UEAwwn
+RXhvciBEZXZpY2VzIERpZ2l0YWwgSWRlbnRpdGllcyBSb290IENBMFkwEwYHKoZI
+zj0CAQYIKoZIzj0DAQcDQgAEQGKIj1KpHpRk5ZOYvf9g33ENs2gOBu3RsCneaYKQ
+Jhhl8wzVnt8vA4wzgv7B9Jui5+efYIk9N19jZ9H8JAjDZKNjMGEwHQYDVR0OBBYE
+FO3l09dQYmSZ5+VuR8IDyNDSrP8cMB8GA1UdIwQYMBaAFO3l09dQYmSZ5+VuR8ID
+yNDSrP8cMA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgGGMAoGCCqGSM49
+BAMCA0gAMEUCIEBfvBPKnQSGQhk/JLvtdsC9AUhzmpnmXKqztImkkkfJAiEAqEOc
+fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
+-----END CERTIFICATE-----`;
+    }
+
     private connectClient(broker_url: string, key: string, crt: string): Promise<any> {
         l.info("Connecting to mqtt broker %s", broker_url);
 
         return new Promise((resolve, reject) => {
             const mqttClientOptions: IClientOptions = {};
-            mqttClientOptions.rejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED !== "0";
+            mqttClientOptions.rejectUnauthorized = process.env["NODE_TLS_REJECT_UNAUTHORIZED"] === "0" ? false : true;
+            mqttClientOptions.ca = this.getCA();
             mqttClientOptions.key = key;
             mqttClientOptions.cert = crt;
             mqttClientOptions.clean = true;
@@ -252,6 +295,10 @@ export class DeviceService extends EventEmitter {
                 this.subscribeChannel(this.consumerPropertiesTopic);
                 this.subscribeChannel(this.applyConfigTopic);
                 this.subscribeChannel(this.actionAlarmTopic);
+                if (ONLY_TEST_CONNECTION) {
+                    l.info("Connection test successful!");
+                    process.exit(0);
+                }
 
                 l.debug("Published introspection " + DeviceService.baseIntrospection + this.customIntrospections);
                 await this.sendStringMessage(
