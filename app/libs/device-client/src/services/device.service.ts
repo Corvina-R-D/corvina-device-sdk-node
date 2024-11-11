@@ -694,7 +694,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
 
     async postAlarm(alarmData: AlarmData): Promise<boolean> {
         const payload = this.serializeMessage({ t: Date.now(), v: alarmData });
-        l.debug("Going to send alarm  %j", { t: Date.now(), v: alarmData } /*, payload */);
+        l.debug("Going to send alarm  %j %d %j", { t: Date.now(), v: alarmData } , payload.length, payload);
         await this.mqttClient.publish(
             `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.DeviceAlarm/a`,
             payload,
