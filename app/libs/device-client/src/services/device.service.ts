@@ -385,7 +385,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
             });
 
             this.mqttClient.on("message", async (topic, message) => {
-                l.info(`Received message on ${topic} %j \n`, message);
+                l.info(`Received message on ${topic}\n`);
                 let decodedMsg: any;
                 switch (topic) {
                     case this.consumerPropertiesTopic.toString():
