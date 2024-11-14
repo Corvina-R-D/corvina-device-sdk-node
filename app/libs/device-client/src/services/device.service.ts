@@ -8,6 +8,7 @@ import BSON from "bson";
 import _ from "lodash";
 import { DataSimulator, AlarmSimulator, BaseSimulator } from "./simulation";
 import { TagDesc, AlarmDesc, DataPoint, AlarmData, AlarmCommand } from "../common/types";
+import * as zlib from 'zlib';
 
 const assert = require("assert");
 
@@ -18,6 +19,7 @@ import { MessageSubscriber } from "./messagesubscriber";
 import { EventEmitter } from "stream";
 import { get } from "http";
 import * as https from 'https';
+import { buffer } from "stream/consumers";
 
 
 const x509 = require("x509.js");
@@ -382,18 +384,24 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                 reject(error);
             });
 
-            this.mqttClient.on("message", (topic, message) => {
-                l.info(`Received message on ${topic} \n`);
+            this.mqttClient.on("message", async (topic, message) => {
+                l.info(`Received message on ${topic} %j \n`, message);
+                let decodedMsg: any;
                 switch (topic) {
                     case this.consumerPropertiesTopic.toString():
+                        decodedMsg = zlib.unzipSync(message.slice(4)).toString();
                         l.debug("Received consumer properties!");
+                        l.trace(`<<<< %s %j %d %j`, topic, decodedMsg, message.length, message);
                         break;
                     case this.applyConfigTopic.toString():
-                        this.applyConfig(JSON.parse(BSON.deserialize(message).v));
+                        decodedMsg = BSON.deserialize(message);
+                        l.trace(`<<<< %s %j %d %j`, topic, decodedMsg, message.length, message);
+                        this.applyConfig(JSON.parse(decodedMsg.v));
                         break;
                     case this.actionAlarmTopic.toString():
-                        //console.log( JSON.parse(BSON.deserialize(message).v) )
-                        const x: AlarmCommand = BSON.deserialize(message).v;
+                        decodedMsg = BSON.deserialize(message);
+                        l.trace(`<<<< %s %j %d %j`, topic, decodedMsg, message.length, message);
+                        const x: AlarmCommand = decodedMsg.v;
                         const sim: AlarmSimulator = BaseSimulator.simulatorsByTagName.get(
                             AlarmSimulator.alarmSimulatorMapkey(x.name),
                         ) as AlarmSimulator;
@@ -411,12 +419,14 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                         }
                         break;
                     default:
+                        decodedMsg = BSON.deserialize(message);
+                        l.trace(`<<<< %s %j %d %j`, topic, decodedMsg, message.length, message);
                         const topicKey = topic.slice(
                             this.licenseData.logicalId.length + this.licenseData.realm.length + 1,
                         );
                         const subscriber = this.dataInterface.config.subscribedTopics.get(topicKey);
                         if (subscriber) {
-                            this.onWrite(subscriber, BSON.deserialize(message));
+                            this.onWrite(subscriber, decodedMsg);
                         } else {
                             l.info("Nothing to do for topic ", topic);
                         }
@@ -479,7 +489,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                 }
                 throw "Cannot publish if not ready to transmit";
             }
-            l.debug(">>>> %s %j %d %d %j", topic, payload, topic.length, message.length, message);
+            l.trace(">>>> %s %j %d %j", topic, payload, message.length, message);
             if (options?.cb) {
                 await this.mqttClient.publish(topic, message, options as IClientPublishOptions, (err, packet) => {
                     options.cb(err, packet);
@@ -694,9 +704,11 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
 
     async postAlarm(alarmData: AlarmData): Promise<boolean> {
         const payload = this.serializeMessage({ t: Date.now(), v: alarmData });
-        l.debug("Going to send alarm  %j %d %j", { t: Date.now(), v: alarmData } , payload.length, payload);
+        const topic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.DeviceAlarm/a`;
+        l.debug("Going to send alarm ");
+        l.trace(">>>> %s %j %d %j", topic, { t: Date.now(), v: alarmData } , payload.length, payload);
         await this.mqttClient.publish(
-            `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.DeviceAlarm/a`,
+            topic,
             payload,
             { qos: 2 },
         );
