@@ -213,14 +213,30 @@ export class DataSimulator extends BaseSimulator {
         this.defPeriod = Math.random() * 30000;
     }
 
-    applyNoise(v: number, min = -Infinity, max = Infinity): number {
+    applyNoise(v: number | boolean | string, min = -Infinity, max = Infinity): number | boolean | string {
         const props = this.desc as SimulationDesc;
         if (props.noise) {
-            let noised = v;
+            const rand = Math.random();
+            if (typeof v == "boolean") {
+                let noised = Number(v);
+                if (props.noise.type == NoiseSimulationType.ABSOLUTE) {
+                    noised = (~~(noised + rand * props.noise.amplitude)) % 2;
+                } else {
+                    noised = (~~(noised + rand * ((noised * props.noise.amplitude) / 100))) % 2;
+                }
+                if (noised < min) {
+                    return min;
+                }
+                if (noised > max) {
+                    return max;
+                }
+                return !!noised;
+            }
+            let noised = v as number;
             if (props.noise.type == NoiseSimulationType.ABSOLUTE) {
-                noised = v + (Math.random() - 0.5) * props.noise.amplitude;
+                noised = noised + (rand - 0.5) * props.noise.amplitude;
             } else {
-                noised = v + (Math.random() - 0.5) * ((v * props.noise.amplitude) / 100);
+                noised = noised + (rand - 0.5) * ((noised * props.noise.amplitude) / 100);
             }
             if (noised < min) {
                 return min;
@@ -230,7 +246,7 @@ export class DataSimulator extends BaseSimulator {
             }
             return noised;
         }
-        return v;
+        return v as number;
     }
 
     nullify(v: any, callback: (nullifyingPrev: boolean, nullifyingCurrent: boolean) => void = null): any {
@@ -288,12 +304,12 @@ export class DataSimulator extends BaseSimulator {
             });
         } else {
             if (!this.desc) {
-                switch (this.type) {
+                switch (this.type) { // default to sine
                     case "integer":
                         this.value = (Math.random() * this.defAmplitude) | 0;
                         break;
                     case "boolean":
-                        this.value = Math.random() > this.defPeriod;
+                        this.value = Math.random() > 0.5;
                         break;
                     case "double":
                         this.value = this.defAmplitude * Math.sin(this.defPhase + (ts * 2 * Math.PI) / this.defPeriod);
@@ -342,7 +358,7 @@ export class DataSimulator extends BaseSimulator {
                                     this.value = ~~noised;
                                     break;
                                 case "boolean":
-                                    this.value = ~~noised > this.defPeriod;
+                                    this.value = !!noised;
                                     break;
                                 case "double":
                                     this.value = noised;
@@ -375,7 +391,7 @@ export class DataSimulator extends BaseSimulator {
                                     this.value = ~~noised;
                                     break;
                                 case "boolean":
-                                    this.value = ~~noised > this.defPeriod;
+                                    this.value = !!noised;
                                     break;
                                 case "double":
                                     this.value = noised;
@@ -416,7 +432,7 @@ export class DataSimulator extends BaseSimulator {
                                     this.value = this.nullify(this.value);
                                     break;
                                 case "boolean":
-                                    this.value = Math.random() > this.defPeriod;
+                                    this.value = !!v;
                                     break;
                                 case "double":
                                     this.value = v;
@@ -493,7 +509,7 @@ export class DataSimulator extends BaseSimulator {
                                     this.value = ~~noised;
                                     break;
                                 case "boolean":
-                                    this.value = ~~noised > this.defPeriod;
+                                    this.value = !!noised;
                                     break;
                                 case "double":
                                     this.value = noised;
@@ -536,7 +552,7 @@ export class DataSimulator extends BaseSimulator {
     }
 
     static clear() {
-        DataSimulator.sorted = false;
+        BaseSimulator.sorted = false;
         BaseSimulator.inited = false;
         BaseSimulator.simulatorsByTagName && BaseSimulator.simulatorsByTagName.clear();
         clearInterval(BaseSimulator.intervalID);

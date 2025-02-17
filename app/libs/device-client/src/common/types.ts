@@ -32,8 +32,9 @@ export enum SimulationType {
 
 export interface SimulationDesc {
     type: SimulationType;
-    noise: NoiseSimulationProperties;
-    nullable: NullableSimulationProperties;
+    noise?: NoiseSimulationProperties;
+    nullable?: NullableSimulationProperties;
+    [additionalProps: string]: any;
 }
 
 export interface TagDesc {
