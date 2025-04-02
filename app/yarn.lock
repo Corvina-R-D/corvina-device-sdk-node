@@ -1388,7 +1388,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@corvina/device-client@^1.4.9, @corvina/device-client@workspace:libs/device-client":
+"@corvina/device-client@^1.4.10, @corvina/device-client@workspace:libs/device-client":
   version: 0.0.0-use.local
   resolution: "@corvina/device-client@workspace:libs/device-client"
   dependencies:
@@ -1437,7 +1437,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@corvina/device-example@workspace:apps/example"
   dependencies:
-    "@corvina/device-client": ^1.4.9
+    "@corvina/device-client": ^1.4.10
     "@nestjs/cli": ^9.2.0
     "@nestjs/common": ^9.0.3
     "@nestjs/config": ^2.2.0
