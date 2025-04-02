@@ -701,13 +701,17 @@ function parseDeviceConfigurationNode({
             // basic type
             if (parentNode.type == "object") {
                 if (node.sendPolicy) {
-                    const publisher = new MessagePublisher({
-                        sourceTag,
-                        modelPath: nodePath,
-                        topic: device_endpoint,
-                        topicType: node.type,
-                    });
-                    initPublisher(publisher, sourceTag, node.sendPolicy, deviceConfig);
+                    if (!device_endpoint) {
+                        l.warn(`Cannot init publish for datalink ${node?.datalink?.source}: no device endpoint set`);
+                    } else {
+                        const publisher = new MessagePublisher({
+                            sourceTag,
+                            modelPath: nodePath,
+                            topic: device_endpoint,
+                            topicType: node.type,
+                        });
+                        initPublisher(publisher, sourceTag, node.sendPolicy, deviceConfig);
+                    }
                 }
                 if (server_endpoint != undefined) {
                     deviceConfig.subscribedTopics.set(

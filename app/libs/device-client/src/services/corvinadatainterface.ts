@@ -102,8 +102,8 @@ export default class CorvinaDataInterface extends EventEmitter {
 
             if (nextTime <= currentTime || options?.forceImmediateSend) {
                 nothingToPublish = false;
+                const internalOptions = { ...options };
                 if (options?.cb) {
-                    const internalOptions = { ...options };
                     internalOptions.cb = (err, pkt) => {
                         if (err) {
                             options.cb(err, tagName, publisher.modelPath);
@@ -111,10 +111,16 @@ export default class CorvinaDataInterface extends EventEmitter {
                             options.cb(undefined, tagName, publisher.modelPath);
                         }
                     };
-                    publisher.publish(currentTime, this._sender, internalOptions as InternalMessageSenderOptions);
                 } else {
-                    publisher.publish(currentTime, this._sender, options as InternalMessageSenderOptions);
+                    const internalOptions = { ...options };
+                    internalOptions.cb = (err, pkt) => {
+                        if (err) {
+                            // log errors occurred during publish
+                            l.error(err);
+                        }
+                    };
                 }
+                publisher.publish(currentTime, this._sender, internalOptions as InternalMessageSenderOptions);
             }
         });
         if (nothingToPublish) {

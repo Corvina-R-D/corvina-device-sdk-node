@@ -104,6 +104,14 @@ export class MessagePublisher {
             return;
         }
 
+        if (!this._topic) {
+            if (options?.cb) {
+                options.cb(new Error("No topic to send"), undefined);
+            }
+            this._lastPublishedStateVersion = this._lastStateVersion;
+            this.rearm(currentTime);
+            return;
+        }
         messageSender.sendMessage(
             this._topic,
             {
@@ -187,6 +195,14 @@ export class AggregatedMessagePublisher extends MessagePublisher {
             x[f.fieldName] = f.lastValueToPublish;
         });
 
+        if (!this._topic) {
+            if (options?.cb) {
+                options.cb(new Error("No topic to send"), undefined);
+            }
+            this._lastPublishedStateVersion = this._lastStateVersion;
+            this.rearm(currentTime);
+            return;
+        }
         messageSender.sendMessage(this._topic, { t: ts, v: x }, options);
 
         this._lastPublishedStateVersion = this._lastStateVersion;
