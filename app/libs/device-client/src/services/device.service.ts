@@ -20,6 +20,10 @@ import { EventEmitter } from "stream";
 import { get } from "http";
 import * as https from 'https';
 import { buffer } from "stream/consumers";
+//import { Manager } from "mqtt-jsonl-store"
+import levelStore from "mqtt-level-store"
+import { urlToHttpOptions } from "url";
+
 
 
 const x509 = require("x509.js");
@@ -94,8 +98,18 @@ export class DeviceService extends EventEmitter {
     protected axios: LicensesAxiosInstance;
     protected dataInterface: CorvinaDataInterface;
 
+    // Message persistence
+   protected messageStore: levelStore;
+    // protected messageStore: Manager;
+    protected defaultQoS: number = process.env["MQTT_DEFAULT_QOS"] ? parseInt(process.env["MQTT_DEFAULT_QOS"]) : 0;
+
     constructor() {
         super();
+        if (process.env["MQTT_MSG_STORE_PATH"]) {
+            this.messageStore = new levelStore(process.env["MQTT_MSG_STORE_PATH"]);
+            // this.messageStore = new Manager(process.env["MQTT_MSG_STORE_PATH"]);
+
+        }
         this._deviceConfig = {};
         this.dataInterface = new CorvinaDataInterface({
             sendMessage: this.sendMessage.bind(this),
@@ -236,7 +250,11 @@ export class DeviceService extends EventEmitter {
         setTimeout(async () => {
             l.debug("Going to end mqtt client");
             await this.mqttClient.end();
-            setTimeout(async () => await this.mqttClient.reconnect(), 1000);
+            // await this.messageStore.open();
+            setTimeout(async () => await this.mqttClient.reconnect({
+                incomingStore: this.messageStore?.incoming,
+                outgoingStore: this.messageStore?.outgoing,
+            }), 1000);
         }, 0);
     }
 
@@ -277,7 +295,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
     private connectClient(broker_url: string, key: string, crt: string): Promise<any> {
         l.info("Connecting to mqtt broker %s", broker_url);
 
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
             const mqttClientOptions: IClientOptions = {};
             mqttClientOptions.rejectUnauthorized = process.env["NODE_TLS_REJECT_UNAUTHORIZED"] === "0" ? false : true;
             mqttClientOptions.ca = this.getCA();
@@ -287,6 +305,11 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
             mqttClientOptions.clientId = x509.parseCert(crt).subject.commonName;
             mqttClientOptions.reconnectPeriod = 10000;
             l.debug(mqttClientOptions, "MQTT options");
+
+            // await this.messageStore.open();
+            mqttClientOptions.incomingStore = this.messageStore?.incoming;
+            mqttClientOptions.outgoingStore = this.messageStore?.outgoing;
+
             this.mqttClient = mqtt.connect(broker_url, mqttClientOptions);
 
             l.debug("MQTT client created");
@@ -489,7 +512,12 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                 }
                 throw "Cannot publish if not ready to transmit";
             }
-            l.trace(">>>> %s %j %d %j", topic, payload, message.length, message);
+            options = options || { qos: this.defaultQoS };
+            if (!options.qos) {
+                options.qos = this.defaultQoS;
+            }
+
+            l.trace(">>>> %s %j %d %j QoS %n", topic, payload, message.length, message, options.qos);
             if (options?.cb) {
                 await this.mqttClient.publish(topic, message, options as IClientPublishOptions, (err, packet) => {
                     options.cb(err, packet);

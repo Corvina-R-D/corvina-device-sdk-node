@@ -57,6 +57,8 @@
         "dotenv": "^16.0.1",
         "lodash": "^4.17.21",
         "mqtt": "^5.3.5",
+        "mqtt-jsonl-store": "^0.2.1",
+        "mqtt-level-store": "^3.1.0",
         "mustache": "^4.2.0",
         "passport": "^0.5.2",
         "passport-headerapikey": "^1.2.2",
