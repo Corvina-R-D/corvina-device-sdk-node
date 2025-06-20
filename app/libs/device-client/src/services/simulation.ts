@@ -652,7 +652,7 @@ export class AlarmSimulator extends BaseSimulator {
                     this.alarmData.state |= AlarmState.ALARM_REQUIRES_RESET;
                 }
                 l.info(`Alarm ${this.alarmData.name} acknowledged by ${user} : ${comment}`);
-
+                this.alarmData.ts = new Date();
                 this.propagate();
             } else {
                 l.warn(`Alarm ${this.alarmData.name} does not require ack`);
@@ -681,6 +681,7 @@ export class AlarmSimulator extends BaseSimulator {
                 if (!(this.alarmData.state & AlarmState.ALARM_ACTIVE)) {
                     this.alarmData.state &= ~(AlarmState.ALARM_ACKED | AlarmState.ALARM_REQUIRES_RESET);
                     l.info(`Alarm ${this.alarmData.name} reset by ${user} : ${comment}`);
+                    this.alarmData.ts = new Date();
                     this.propagate();
                 } else {
                     l.warn(`Cannot reset active alarm ${this.alarmData.name}`);
@@ -728,7 +729,6 @@ export class AlarmSimulator extends BaseSimulator {
                 }
                 this.alarmData.desc = Mustache.render(this.alarm.desc["en"], this.tagRefs, {}, ["[", "]"]);
             }
-            this.alarmData.ts = new Date();
 
             if (await this.callback(this.alarmData)) {
                 l.debug("Updated alarm value %j %j %j", this.lastSentValue, this.value, this.alarmData);
@@ -781,6 +781,9 @@ export class AlarmSimulator extends BaseSimulator {
             ) {
                 // set a new event timestamp
                 this.alarmData.evTs = new Date();
+                this.alarmData.ts = this.alarmData.evTs;
+            } else {
+                this.alarmData.ts = new Date();
             }
 
             if (this.alarm.ack_required && this.value && !(this.alarmData.state & AlarmState.ALARM_ACKED)) {
