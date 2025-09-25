@@ -168,8 +168,11 @@ export class DeviceService extends EventEmitter {
         this.inited = false;
         this.readyToTransmit = false;
         if (this.mqttClient) {
-            this.mqttClient.end();
+            l.debug("Going to end mqtt client");
+            this.mqttClient.end(true);
             this.mqttClient = null;
+        } else {
+            l.debug("No mqtt client to end");
         }
         DataSimulator.clear();
         this.initPending = null;
@@ -517,7 +520,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                 options.qos = this.defaultQoS;
             }
 
-            l.trace(">>>> %s %j %d %j QoS %n", topic, payload, message.length, message, options.qos);
+            l.trace(">>>> %s %j %d %j QoS %d", topic, payload, message.length, message, options.qos);
             if (options?.cb) {
                 await this.mqttClient.publish(topic, message, options as IClientPublishOptions, (err, packet) => {
                     options.cb(err, packet);
@@ -593,6 +596,14 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                 this.initPending = null;
                 const randomRetry = 5 + 10 * Math.random();
                 l.warn(`Retry init in  ${randomRetry} secs`);
+
+                if (this.mqttClient) {
+                    l.debug("Going to end mqtt client");
+                    this.mqttClient.end(true);
+                    this.mqttClient = null;
+                } else {
+                    l.debug("No mqtt client to end");
+                }
 
                 setTimeout(() => {
                     this.init();
