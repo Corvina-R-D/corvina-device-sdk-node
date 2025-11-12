@@ -1,0 +1,13 @@
+on:
+  push:
+
+name: Mirror repository
+
+jobs:
+  mirror:
+    name: Mirror repository
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: Corvina-R-D/corvina-github-actions/mirror-repository@v5
+        with:
+          target: https://x-token-auth:${{ secrets.BITBUCKET_ACCESS_TOKEN }}@bitbucket.org/exorint/mirror-corvina-device-sdk-node.git
