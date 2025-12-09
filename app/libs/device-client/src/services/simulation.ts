@@ -176,11 +176,11 @@ export class BaseSimulator implements AbstractSimulator {
 
 export class DataSimulator extends BaseSimulator {
     private callback: (tagName: string, value: number, ts: number) => Promise<boolean>;
-    private type;
+    type: string;
+    desc: SimulationDesc;
     private defAmplitude;
     private defPhase;
     private defPeriod;
-    private desc: SimulationDesc;
 
     constructor(
         tag: string,
@@ -628,7 +628,7 @@ export class AlarmSimulator extends BaseSimulator {
     //   deactivate! => !active !acked ack_required !reset_required
     //   ack! => !active acked !ack_required  !reset_required
 
-    acknoledge(evTs: number, user: string, comment: string) {
+    acknowledge(evTs: number, user: string, comment: string) {
         if (evTs != this.alarmData.evTs.valueOf()) {
             l.warn(
                 `Trying to reset alarm ${this.alarmData.name}:${evTs} but current active event timestamp is ${this.alarmData.evTs}`,

@@ -97,9 +97,6 @@ The same can be done for alarms:
   ```
 
 
-
-
-
 ### Receiving data
 
 
@@ -117,6 +114,16 @@ For example:
     app.get(DeviceService).on("write", (event) => {
         console.log("Write event received", event);
     });
+```
+
+#### Manual simulation
+
+If tag simulation is enabled, and the tag simulation type is `const`, the write operation will overwrite the simulated const value.
+
+In this way is possible to manually trigger simulated alarms having that tag as source tag:
+
+```
+AVAILABLE_ALARMS=[{"name":"Threshold","severity":1,"source":"Tag1","desc":{"en":"Tag above normal : [Tag1]"},"ack_required":false,"reset_required":false,"simulation":{"f":"{ return $('Tag1') > 10 }"}}]
 ```
 
 ## Environment variables
