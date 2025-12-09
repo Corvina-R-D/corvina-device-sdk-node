@@ -684,7 +684,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                     },
                     { type: SimulationType.CONST, value: value },
                 );
-                console.log("Inited new const simulator  ", sim);
+                l.info("Inited new const simulator  ", sim);
             }
         }
     }
