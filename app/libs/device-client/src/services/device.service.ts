@@ -6,9 +6,9 @@ import LicensesAxiosInstance, { LicenseData, CrtData } from "./licensesaxiosinst
 import mqtt, { IClientOptions, IClientPublishOptions, MqttClient } from "mqtt";
 import BSON from "bson";
 import _ from "lodash";
-import { DataSimulator, AlarmSimulator, BaseSimulator } from "./simulation";
-import { TagDesc, AlarmDesc, DataPoint, AlarmData, AlarmCommand } from "../common/types";
-import * as zlib from 'zlib';
+import { DataSimulator, AlarmSimulator, BaseSimulator, ConstSimulationProperties } from "./simulation";
+import { TagDesc, AlarmDesc, DataPoint, AlarmData, AlarmCommand, SimulationType } from "../common/types";
+import * as zlib from "zlib";
 
 const assert = require("assert");
 
@@ -18,13 +18,11 @@ import { l } from "./logger.service";
 import { MessageSubscriber } from "./messagesubscriber";
 import { EventEmitter } from "stream";
 import { get } from "http";
-import * as https from 'https';
+import * as https from "https";
 import { buffer } from "stream/consumers";
 //import { Manager } from "mqtt-jsonl-store"
-import levelStore from "mqtt-level-store"
+import levelStore from "mqtt-level-store";
 import { urlToHttpOptions } from "url";
-
-
 
 const x509 = require("x509.js");
 
@@ -99,7 +97,7 @@ export class DeviceService extends EventEmitter {
     protected dataInterface: CorvinaDataInterface;
 
     // Message persistence
-   protected messageStore: levelStore;
+    protected messageStore: levelStore;
     // protected messageStore: Manager;
     protected defaultQoS: number = process.env["MQTT_DEFAULT_QOS"] ? parseInt(process.env["MQTT_DEFAULT_QOS"]) : 0;
 
@@ -108,7 +106,6 @@ export class DeviceService extends EventEmitter {
         if (process.env["MQTT_MSG_STORE_PATH"]) {
             this.messageStore = new levelStore(process.env["MQTT_MSG_STORE_PATH"]);
             // this.messageStore = new Manager(process.env["MQTT_MSG_STORE_PATH"]);
-
         }
         this._deviceConfig = {};
         this.dataInterface = new CorvinaDataInterface({
@@ -254,10 +251,14 @@ export class DeviceService extends EventEmitter {
             l.debug("Going to end mqtt client");
             await this.mqttClient.end();
             // await this.messageStore.open();
-            setTimeout(async () => await this.mqttClient.reconnect({
-                incomingStore: this.messageStore?.incoming,
-                outgoingStore: this.messageStore?.outgoing,
-            }), 1000);
+            setTimeout(
+                async () =>
+                    await this.mqttClient.reconnect({
+                        incomingStore: this.messageStore?.incoming,
+                        outgoingStore: this.messageStore?.outgoing,
+                    }),
+                1000,
+            );
         }, 0);
     }
 
@@ -269,7 +270,7 @@ export class DeviceService extends EventEmitter {
         }
     }
 
-    private getCA() : string | Buffer {
+    private getCA(): string | Buffer {
         if (process.env["BROKER_CA_FILE"]) {
             try {
                 return fs.readFileSync(process.env["BROKER_CA_FILE"]);
@@ -372,7 +373,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                             value.type,
                             async (t, v, ts) => {
                                 if (this.isReady()) {
-                                    return this.post([{ tagName: t, value: v, timestamp: ts }]);
+                                    return this._internalPost([{ tagName: t, value: v, timestamp: ts }], true);
                                 }
                                 return false;
                             },
@@ -436,7 +437,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                         } else {
                             switch (x.command) {
                                 case "ack":
-                                    sim.acknoledge(x.evTs, x.user, x.comment);
+                                    sim.acknowledge(x.evTs, x.user, x.comment);
                                     break;
                                 case "reset":
                                     sim.reset(x.evTs, x.user, x.comment);
@@ -453,6 +454,11 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                         const subscriber = this.dataInterface.config.subscribedTopics.get(topicKey);
                         if (subscriber) {
                             this.onWrite(subscriber, decodedMsg);
+
+                            // notify any simulation about the external write
+                            if (this._deviceConfig.simulateTags) {
+                                this.applyBackToSimulation(subscriber.targetTag, decodedMsg.v);
+                            }
                         } else {
                             l.info("Nothing to do for topic ", topic);
                         }
@@ -655,20 +661,49 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
         }
     }
 
+    private applyBackToSimulation(tagName: string, value: any) {
+        // do we have a simulation for this tagName? If yes, update the simulation value as well
+        const sim = BaseSimulator.simulatorsByTagName.get(tagName) as DataSimulator;
+        if (sim) {
+            sim.value = value;
+            sim.lastSentValue = value;
+            if (sim.desc?.type == SimulationType.CONST) {
+                (sim.desc as ConstSimulationProperties).value = value;
+            }
+        } else {
+            // setup a DataSimulator of type const with the injected value if simulation is enabled
+            if (this._deviceConfig.simulateTags) {
+                const sim = new DataSimulator(
+                    tagName,
+                    this.jsToCorvinaType(value),
+                    async (t, v, ts) => {
+                        if (this.isReady()) {
+                            return this._internalPost([{ tagName: t, value: v, timestamp: ts }], true);
+                        }
+                        return false;
+                    },
+                    { type: SimulationType.CONST, value: value },
+                );
+                l.info("Inited new const simulator  ", sim);
+            }
+        }
+    }
+
     private recurseNotifyObject = (
         prefix: string,
         rootValue: Record<string, any>,
         ts: number,
+        calledFromSimulation: boolean,
         options?: MessageSenderOptions,
     ) => {
         _.mapKeys(rootValue, (value, key) => {
             const decoratedName = `${prefix}${key}`;
             if (_.isArray(value) && value.length > 0 && !_.isObject(value[0])) {
                 for (const e in value as Array<any>) {
-                    this.recurseNotifyObject(`${decoratedName}[${e}]`, value[e], ts, options);
+                    this.recurseNotifyObject(`${decoratedName}[${e}]`, value[e], ts, calledFromSimulation, options);
                 }
             } else if (_.isObject(value)) {
-                this.recurseNotifyObject(decoratedName + ".", value, ts, options);
+                this.recurseNotifyObject(decoratedName + ".", value, ts, calledFromSimulation, options);
             }
             if (
                 this._deviceConfig.dynamicTags &&
@@ -683,6 +718,11 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                 this.throttledUpdateAvailableTags();
             }
             if (this.dataInterface.config) {
+                // do we have a simulation for this tagName? If yes, update the simulation value as well
+                if (!calledFromSimulation) {
+                    this.applyBackToSimulation(decoratedName, value);
+                }
+
                 this.dataInterface.notifyTag(decoratedName, new State(value, ts), options);
             }
         });
@@ -695,12 +735,16 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
         }
     };
 
+    async post(dataPoints: Array<DataPoint>, options?: MessageSenderOptions): Promise<boolean> {
+        return this._internalPost(dataPoints, false, options);
+    }
+
     /**
      *
      * @param dataPoints
      * @returns
      */
-    async post(dataPoints: Array<DataPoint>, options?: MessageSenderOptions): Promise<boolean> {
+    private async _internalPost(dataPoints: Array<DataPoint>, calledFromSimulation: boolean, options?: MessageSenderOptions): Promise<boolean> {
         if (!this.readyToTransmit) {
             const err = `Cannot process ${JSON.stringify(dataPoints)}. Device not ready to transmit!`;
             if (options?.cb) {
@@ -714,13 +758,17 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
         for (const dp of dataPoints) {
             if (dp.tagName == undefined) {
                 assert(_.isObject(dp.value) && !_.isArray(dp.value));
-                this.recurseNotifyObject("", dp.value, dp.timestamp, options);
+                this.recurseNotifyObject("", dp.value, dp.timestamp, calledFromSimulation, options);
             } else {
                 // else notify single components
                 if (_.isObject(dp.value) && !options?.recurseNotifyOnlyWholeObject && !_.isArray(dp.value)) {
-                    this.recurseNotifyObject(dp.tagName + ".", dp.value, dp.timestamp, options);
+                    this.recurseNotifyObject(dp.tagName + ".", dp.value, dp.timestamp, calledFromSimulation, options);
                 } else {
                     if (this.dataInterface.config) {
+                        if (!calledFromSimulation) {
+                            this.applyBackToSimulation(dp.tagName as string, dp.value);
+                        }
+
                         // try to notify whole object
                         this.dataInterface.notifyTag(dp.tagName as string, new State(dp.value, dp.timestamp), options);
                     }
@@ -745,12 +793,8 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
         const payload = this.serializeMessage({ t: Date.now(), v: alarmData });
         const topic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.DeviceAlarm/a`;
         l.debug("Going to send alarm ");
-        l.trace(">>>> %s %j %d %j", topic, { t: Date.now(), v: alarmData } , payload.length, payload);
-        await this.mqttClient.publish(
-            topic,
-            payload,
-            { qos: 2 },
-        );
+        l.trace(">>>> %s %j %d %j", topic, { t: Date.now(), v: alarmData }, payload.length, payload);
+        await this.mqttClient.publish(topic, payload, { qos: 2 });
         return true;
     }
 
