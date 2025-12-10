@@ -9,12 +9,12 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://bitbucket.org/exorint/corvina-device-sdk-node.git"
+        "url": "https://github.com/Corvina-R-D/corvina-device-sdk-node"
     },
     "bugs": {
-        "url": "https://bitbucket.org/exorint/corvina-device-sdk-node.git"
+        "url": "https://github.com/Corvina-R-D/corvina-device-sdk-node"
     },
-    "homepage": "https://bitbucket.org/exorint/corvina-device-sdk-node/src/master/app/apps/example/",
+    "homepage": "https://github.com/Corvina-R-D/corvina-device-sdk-node/tree/master/app/apps/example",
     "main": "./dist/main.js",
     "exports": {
         ".": {
