@@ -663,7 +663,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
 
     private applyBackToSimulation(tagName: string, value: any) {
         // do we have a simulation for this tagName? If yes, update the simulation value as well
-        const sim = BaseSimulator.simulatorsByTagName.get(tagName) as DataSimulator;
+        const sim = BaseSimulator.simulatorsByTagName?.get(tagName) as DataSimulator;
         if (sim) {
             sim.value = value;
             sim.lastSentValue = value;
@@ -765,7 +765,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                     this.recurseNotifyObject(dp.tagName + ".", dp.value, dp.timestamp, calledFromSimulation, options);
                 } else {
                     if (this.dataInterface.config) {
-                        if (!calledFromSimulation) {
+                        if (!calledFromSimulation && this._deviceConfig.simulateTags) {
                             this.applyBackToSimulation(dp.tagName as string, dp.value);
                         }
 
