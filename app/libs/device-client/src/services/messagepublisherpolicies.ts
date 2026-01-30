@@ -367,7 +367,7 @@ export class MessagePublisher_OnChangedPolicy extends MessagePublisher_TagBasedP
                 triggered =
                     newState.value.length != this._lastState?.value?.length ||
                     newState.value.reduce((acc, v, i) => {
-                        return triggered || this.isOutOfDeadband(v, this._lastState[i]);
+                        return triggered || this.isOutOfDeadband(v, this._lastState?.value[i]);
                     }, triggered);
             } else {
                 triggered = this.isOutOfDeadband(this._lastState.value, newState.value);
