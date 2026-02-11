@@ -51,7 +51,7 @@
     "dependencies": {
         "@nestjs/common": "^9.0.3",
         "@nestjs/config": "^2.2.0",
-        "axios": "^0.30.2",
+        "axios": "^1.13.5",
         "bson": "^4.6.4",
         "d3-ease": "^1.0.5",
         "dotenv": "^16.0.1",
