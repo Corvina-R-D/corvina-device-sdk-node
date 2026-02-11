@@ -43,7 +43,7 @@
         "@nestjs/swagger": "^6.0.3",
         "@nestjs/terminus": "^9.0.0",
         "@nestjs/testing": "^9.0.3",
-        "axios": "^0.30.2",
+        "axios": "^1.13.5",
         "nestjs-pino": "^2.6.0",
         "pino-http": "^8.1.1"
     },
