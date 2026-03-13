@@ -29,34 +29,31 @@
         "start": "nest start",
         "start:dev": "tsc -b ./tsconfig.app.json && nest start",
         "start:debug": "tsc-watch -b ./tsconfig.app.json  --onSuccess \"nest start\"",
-        "start:prod": "node dist/main",
-        "test": "jest",
-        "test:watch": "jest --watch",
-        "test:cov": "jest --coverage"
+        "start:prod": "node dist/main"
     },
     "dependencies": {
-        "@corvina/device-client": "^1.5.9",
-        "@nestjs/common": "^9.0.3",
-        "@nestjs/config": "^2.2.0",
-        "@nestjs/core": "^9.0.3",
-        "@nestjs/platform-express": "^9.0.3",
-        "@nestjs/swagger": "^6.0.3",
-        "@nestjs/terminus": "^9.0.0",
-        "@nestjs/testing": "^9.0.3",
-        "axios": "^0.30.2",
-        "nestjs-pino": "^2.6.0",
-        "pino-http": "^8.1.1"
+        "@corvina/device-client": "*",
+        "@nestjs/common": "^11.1.15",
+        "@nestjs/config": "^4.0.3",
+        "@nestjs/core": "^11.1.15",
+        "@nestjs/platform-express": "^11.1.15",
+        "@nestjs/swagger": "^11.2.6",
+        "@nestjs/terminus": "^11.1.1",
+        "axios": "^1.13.6",
+        "nestjs-pino": "^4.6.0",
+        "pino": "^10.3.1",
+        "pino-http": "^11.0.0",
+        "reflect-metadata": "^0.2.2",
+        "rxjs": "^7.8.2"
+    },
+    "devDependencies": {
+        "@nestjs/cli": "^11.0.16",
+        "tsc-watch": "^7.2.0",
+        "typescript": "^5.9.3"
     },
     "keywords": [
         "corvina",
         "iot"
     ],
-    "bin": "./bin/corvina-device-example.js",
-    "devDependencies": {
-        "@nestjs/cli": "^9.2.0",
-        "pino-pretty": "^8.1.0",
-        "supertest": "^6.2.4",
-        "tsc-watch": "^5.0.3",
-        "typescript": "^4.7.4"
-    }
+    "bin": "./bin/corvina-device-example.js"
 }
