@@ -20,7 +20,7 @@ export default class CorvinaDataInterface extends EventEmitter {
     private CYCLE_TIME: number;
 
     protected _nextTick: number;
-    protected _internalTimer: NodeJS.Timer;
+    protected _internalTimer: NodeJS.Timeout;
     protected _sender;
 
     get config(): DeviceConfiguration {
