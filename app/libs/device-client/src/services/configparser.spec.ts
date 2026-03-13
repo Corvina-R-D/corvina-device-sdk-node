@@ -417,7 +417,7 @@ describe("Device config parser", () => {
 
         expect(() => {
             parseDeviceConfig(datamodel_ko as DeviceConfigurationData);
-        }).toThrow(/Cannot mix.*/);
+        }).toThrowError(/Cannot mix.*/);
         expect(() => {
             parseDeviceConfig(datamodel_ok as DeviceConfigurationData);
         }).not.toThrow();
