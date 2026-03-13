@@ -37,4 +37,3 @@ npx @corvina/device-example@latest
 ## Miscellaneous
 
 - See [this document](./app/README.md) for more details about available environment variables options;
-- See [developer document](./README-dev.md) for more details about development and debugging options;
