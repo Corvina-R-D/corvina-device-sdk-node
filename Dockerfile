@@ -14,6 +14,8 @@ RUN cd ./apps/example && yarn workspaces focus && yarn build
 
 FROM node:22-alpine
 
+RUN apk add openssl ca-certificates
+
 # Set the locale
 ENV LANG=C.UTF-8
 
