@@ -19,13 +19,13 @@ docker build -t corvina-node-device .
 A `.env` file containing the environment variable definitions can be mounted to the container:
 
 ```bash
-docker run --rm -v $(pwd)/.env:/app/.env -ti corvina-node-device
+docker run --init --rm -v $(pwd)/.env:/app/.env -ti corvina-node-device
 ```
 
 #### Passing activation key via command line
 
 ```bash
-docker run --rm -e ACTIVATION_KEY=<paste-your-activation-key-here> -ti corvina-node-device
+docker run --init --rm -e ACTIVATION_KEY=<paste-your-activation-key-here> -ti corvina-node-device
 ```
 
 ## Via npx
@@ -36,4 +36,4 @@ npx @corvina/device-example@latest
 
 ## Miscellaneous
 
-- See [this document](./app/README.md) for more details about available environment variables options;
+- See [this document](./app/apps/example/README.md) for more details about available environment variables options;

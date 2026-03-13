@@ -10,6 +10,9 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule, {
         bufferLogs: false,
     });
+
+    app.enableShutdownHooks();
+
     const pinoLogger: LoggerService = app.get(NestPinoLogger);
     app.useLogger(pinoLogger);
 
