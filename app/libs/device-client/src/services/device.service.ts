@@ -319,7 +319,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
             l.debug("MQTT client created");
 
             this.mqttClient.on("connect", async (v) => {
-                l.info("Successfully connected to mqtt broker!", JSON.stringify(v));
+                l.info(`Successfully connected to mqtt broker! ${JSON.stringify(v)}`);
 
                 this.subscribeChannel(this.consumerPropertiesTopic);
                 this.subscribeChannel(this.applyConfigTopic);
@@ -460,7 +460,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                                 this.applyBackToSimulation(subscriber.targetTag, decodedMsg.v);
                             }
                         } else {
-                            l.info("Nothing to do for topic ", topic);
+                            l.info(`Nothing to do for topic ${topic}`);
                         }
                 }
             });
@@ -684,7 +684,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                     },
                     { type: SimulationType.CONST, value: value },
                 );
-                l.info("Inited new const simulator  ", sim);
+                l.info({ sim }, "Inited new const simulator");
             }
         }
     }

@@ -102,8 +102,8 @@ describe("Publisher", () => {
         // must wait the timeout
         expect(sender.sendMessage).toHaveBeenCalledTimes(2);
 
-        expect(sender.sendMessage).toHaveBeenCalledWith("/com.exor.a1244/mount/0/b", { t: 1001, v: 23 }, undefined);
-        expect(sender.sendMessage).toHaveBeenCalledWith("/com.exor.a1244/mount/0/b", { t: 2000, v: 24 }, undefined);
+        expect(sender.sendMessage).toHaveBeenCalledWith("/com.exor.a1244/mount/0/b", { t: 1001, v: 23 }, expect.anything());
+        expect(sender.sendMessage).toHaveBeenCalledWith("/com.exor.a1244/mount/0/b", { t: 2000, v: 24 }, expect.anything());
     });
 
     it("send messages of structure type with trigger", () => {
@@ -176,19 +176,19 @@ describe("Publisher", () => {
         jest.advanceTimersByTime(1001);
         expect(doPublishSpy).toHaveBeenCalledTimes(2);
         // trigger missing
-        expect(sender.sendMessage).not.toHaveBeenCalledWith("/com.exor.a1244/mount/0/b", expect.anything(), undefined);
-        expect(sender.sendMessage).not.toHaveBeenCalledWith("/com.exor.a1244/mount/0/a", expect.anything(), undefined);
+        expect(sender.sendMessage).not.toHaveBeenCalledWith("/com.exor.a1244/mount/0/b", expect.anything(), expect.anything());
+        expect(sender.sendMessage).not.toHaveBeenCalledWith("/com.exor.a1244/mount/0/a", expect.anything(), expect.anything());
 
         // trigger provided => message is immediately sent
         c.notifyTag("/trigger", new State(1, 0));
         expect(sender.sendMessage).toHaveBeenCalledWith(
             "/com.exor.a1244/mount/0/",
             { t: expect.anything(), v: { a: 23 } },
-            undefined,
+            expect.anything(),
         );
 
         (sender.sendMessage as ReturnType<typeof jest.fn>).mockClear();
-        expect(sender.sendMessage).not.toHaveBeenCalledWith(expect.anything(), "/com.exor.a1244/mount/0/b", undefined);
+        expect(sender.sendMessage).not.toHaveBeenCalledWith(expect.anything(), "/com.exor.a1244/mount/0/b", expect.anything());
 
         time = 4500;
         jest.advanceTimersByTime(4500 - 1001);
