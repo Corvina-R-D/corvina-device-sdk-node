@@ -32,7 +32,7 @@
         "start:prod": "node dist/main"
     },
     "dependencies": {
-        "@corvina/device-client": "workspace:*",
+        "@corvina/device-client": "^1.5.13",
         "@nestjs/common": "^11.1.15",
         "@nestjs/config": "^4.0.3",
         "@nestjs/core": "^11.1.15",
@@ -55,5 +55,6 @@
         "corvina",
         "iot"
     ],
-    "bin": "./bin/corvina-device-example.js"
+    "bin": "./bin/corvina-device-example.js",
+    "gitHead": "36ebda7e17141d797130713a370bb5981d43df88"
 }
