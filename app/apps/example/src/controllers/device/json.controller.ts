@@ -101,7 +101,7 @@ export class Json {
             qos: qos || 0,
             cb: postCallback
                 ? (error, tagName, modelPath) => {
-                      axios.post(postCallback, { error: { message: error.message }, tagName, modelPath });
+                      axios.post(postCallback, { error: { message: error?.message }, tagName, modelPath });
                   }
                 : undefined,
         });
