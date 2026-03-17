@@ -42,6 +42,7 @@ export interface DeviceConfig {
     availableTags?: Map<string, TagDesc>; // json array string
     dynamicTags?: Map<string, TagDesc>; // dynamic tags generated when posting json data
     simulateTags?: boolean;
+    availableAlarmsFile?: string; // json array string
     availableAlarms?: Map<string, AlarmDesc>; // json array string
     simulateAlarms?: boolean;
     packetFormat?: PacketFormatEnum;

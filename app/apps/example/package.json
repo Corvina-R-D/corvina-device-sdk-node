@@ -1,6 +1,6 @@
 {
     "name": "@corvina/device-example",
-    "version": "1.5.13",
+    "version": "1.5.14",
     "description": "Corvina Device Example based on @corvina/device-client",
     "author": "arrigo.zanette@corvina.io",
     "license": "MIT",
@@ -32,7 +32,7 @@
         "start:prod": "node dist/main"
     },
     "dependencies": {
-        "@corvina/device-client": "^1.5.13",
+        "@corvina/device-client": "^1.5.14",
         "@nestjs/common": "^11.1.15",
         "@nestjs/config": "^4.0.3",
         "@nestjs/core": "^11.1.15",
