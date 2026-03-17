@@ -29,11 +29,13 @@ export class DeviceRunnerService implements DeviceRunner {
     run() {
         this.deviceService.setCycleTime(parseInt(process.env.CYCLE_TIME) || 1000);
         const availableTagsFile = process.env.AVAILABLE_TAGS_FILE || "";
+        const availableAlarmsFile = process.env.AVAILABLE_ALARMS_FILE || "";
         this.deviceService.reinit(
             {
                 activationKey: process.env.ACTIVATION_KEY,
                 pairingEndpoint: process.env.PAIRING_ENDPOINT,
                 availableTagsFile: availableTagsFile,
+                availableAlarmsFile: availableAlarmsFile,
                 availableTags: ((): Map<string, TagDesc> => {
                     try {
                         if (availableTagsFile.length) {
@@ -56,9 +58,15 @@ export class DeviceRunnerService implements DeviceRunner {
                 availableAlarms: ((): Map<string, AlarmDesc> => {
                     try {
                         const alarmsMap = new Map<string, AlarmDesc>();
-                        JSON.parse(process.env.AVAILABLE_ALARMS).forEach((a) => {
-                            alarmsMap.set(a.name, a);
-                        });
+                        if (availableAlarmsFile.length) {
+                            JSON.parse(fs.readFileSync(availableAlarmsFile).toString()).forEach((a) => {
+                                alarmsMap.set(a.name, a);
+                            });
+                        } else {
+                            JSON.parse(process.env.AVAILABLE_ALARMS).forEach((a) => {
+                                alarmsMap.set(a.name, a);
+                            });
+                        }
                         return alarmsMap;
                     } catch (err) {
                         return new Map<string, AlarmDesc>();
