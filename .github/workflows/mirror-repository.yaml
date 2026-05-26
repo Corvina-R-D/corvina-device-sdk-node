@@ -1,13 +1,43 @@
 on:
-  push:
+  push: {}
+  schedule:
+    - cron: "0 0 * * *"
 
 name: Mirror repository
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   mirror:
     name: Mirror repository
     runs-on: ubuntu-24.04
     steps:
-      - uses: Corvina-R-D/corvina-github-public-actions/mirror-public-repository@v1
+      - id: bitbucket-auth
+        name: Get access token for Bitbucket
+        env:
+          BITBUCKET_CLIENT_ID: ${{ vars.BITBUCKET_CLIENT_ID }}
+          BITBUCKET_CLIENT_SECRET: ${{ secrets.BITBUCKET_CLIENT_SECRET }}
+        shell: bash
+        run: |
+          token="$(
+            curl \
+              --silent \
+              --fail \
+              --request POST \
+              --user "${BITBUCKET_CLIENT_ID}:${BITBUCKET_CLIENT_SECRET}" \
+              --header "content-type: application/x-www-form-urlencoded" \
+              --data "grant_type=client_credentials" \
+              "https://bitbucket.org/site/oauth2/access_token" \
+            | jq --exit-status --raw-output '.access_token'
+          )"
+          echo "::add-mask::${token}"
+          printf 'token=%s\n' "${token}" >> "${GITHUB_OUTPUT}"
+
+      - uses: Corvina-R-D/corvina-github-actions/mirror-repository@v5
         with:
-          target: https://x-token-auth:${{ secrets.BITBUCKET_ACCESS_TOKEN }}@bitbucket.org/exorint/mirror-corvina-device-sdk-node.git
+          target: https://x-token-auth:${{ steps.bitbucket-auth.outputs.token }}@bitbucket.org/exorint/mirror-corvina-device-sdk-node.git
