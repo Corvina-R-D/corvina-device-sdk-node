@@ -1,0 +1,13 @@
+name: Dependabot Push Detector
+
+on:
+  push:
+
+jobs:
+  detect-dependabot:
+    runs-on: ubuntu-24.04
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    steps:
+    - run: echo "Dependabot PR validated"
+    - name: Debug workflow_run event
+      run: echo "${{ toJson(github.event.workflow_run) }}"

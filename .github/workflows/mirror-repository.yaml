@@ -7,6 +7,7 @@ jobs:
   mirror:
     name: Mirror repository
     runs-on: ubuntu-24.04
+    if: github.actor != 'dependabot[bot]'
     steps:
       - uses: Corvina-R-D/corvina-github-public-actions/mirror-public-repository@v1
         with:

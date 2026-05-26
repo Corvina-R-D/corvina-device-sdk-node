@@ -1,0 +1,22 @@
+name: Mirror Repository (Dependabot)
+
+on:
+  workflow_run:
+    workflows: 
+      - Dependabot Push Detector
+    types:
+      - completed
+
+jobs:
+  mirror:
+    name: Mirror repository (with secrets)
+    runs-on: ubuntu-24.04
+    if: >
+      github.event.workflow_run.actor.login == 'dependabot[bot]'
+      
+    steps:
+      - uses: actions/checkout@v6
+      - name: Mirror to Bitbucket
+        uses: Corvina-R-D/corvina-github-public-actions/mirror-public-repository@v1
+        with:
+          target: https://x-token-auth:${{ secrets.BITBUCKET_ACCESS_TOKEN }}@bitbucket.org/exorint/mirror-corvina-device-sdk-node.git
