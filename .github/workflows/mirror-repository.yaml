@@ -38,6 +38,6 @@ jobs:
           echo "::add-mask::${token}"
           printf 'token=%s\n' "${token}" >> "${GITHUB_OUTPUT}"
 
-      - uses: Corvina-R-D/corvina-github-actions/mirror-repository@v5
+      - uses: Corvina-R-D/corvina-github-public-actions/mirror-public-repository@v5
         with:
           target: https://x-token-auth:${{ steps.bitbucket-auth.outputs.token }}@bitbucket.org/exorint/mirror-corvina-device-sdk-node.git
