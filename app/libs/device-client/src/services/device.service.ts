@@ -74,6 +74,8 @@ export class DeviceService extends EventEmitter implements OnModuleDestroy {
     protected mqttClient: MqttClient;
     protected clientKey: string;
     protected clientCrt: string;
+    protected applyConfigTimeout: NodeJS.Timeout;
+    protected applyConfigReconnectTimeout: NodeJS.Timeout;
 
     protected msgSentStats = 0;
     protected byteSentStats = 0;
@@ -168,6 +170,14 @@ export class DeviceService extends EventEmitter implements OnModuleDestroy {
     public reinit(deviceConfig: DeviceConfig, doInit = false): DeviceConfig {
         this.inited = false;
         this.readyToTransmit = false;
+        if (this.applyConfigTimeout) {
+            clearTimeout(this.applyConfigTimeout);
+            this.applyConfigTimeout = null;
+        }
+        if (this.applyConfigReconnectTimeout) {
+            clearTimeout(this.applyConfigReconnectTimeout);
+            this.applyConfigReconnectTimeout = null;
+        }
         if (this.mqttClient) {
             l.debug("Going to end mqtt client");
             this.mqttClient.end(true);
@@ -190,6 +200,14 @@ export class DeviceService extends EventEmitter implements OnModuleDestroy {
 
     public onModuleDestroy() {
         l.info("OnModuleDestroy: ending MQTT client");
+        if (this.applyConfigTimeout) {
+            clearTimeout(this.applyConfigTimeout);
+            this.applyConfigTimeout = null;
+        }
+        if (this.applyConfigReconnectTimeout) {
+            clearTimeout(this.applyConfigReconnectTimeout);
+            this.applyConfigReconnectTimeout = null;
+        }
         if (this.mqttClient) {
             this.mqttClient.end(true);
             this.mqttClient = null;
@@ -260,14 +278,24 @@ export class DeviceService extends EventEmitter implements OnModuleDestroy {
         l.debug("Applied config done!");
 
         this.lastConfig = config;
-        setTimeout(async () => {
+
+        if (this.applyConfigTimeout) {
+            clearTimeout(this.applyConfigTimeout);
+        }
+        if (this.applyConfigReconnectTimeout) {
+            clearTimeout(this.applyConfigReconnectTimeout);
+        }
+
+        this.applyConfigTimeout = setTimeout(async () => {
+            this.applyConfigTimeout = null;
             if (this.mqttClient) {
                 l.debug("Going to end mqtt client");
                 this.mqttClient.end(true);
                 this.mqttClient = null;
             }
-            setTimeout(
+            this.applyConfigReconnectTimeout = setTimeout(
                 async () => {
+                    this.applyConfigReconnectTimeout = null;
                     try {
                         await this.connectClient(
                             this.licenseData.brokerUrls[this.lastTriedBrokerEndpoint % this.licenseData.brokerUrls.length],
@@ -345,81 +373,87 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
 
             let connected = false;
             this.mqttClient.on("connect", async (v) => {
-                connected = true;
-                l.info(`Successfully connected to mqtt broker! ${JSON.stringify(v)}`);
+                try {
+                    l.info(`Successfully connected to mqtt broker! ${JSON.stringify(v)}`);
 
-                this.subscribeChannel(this.consumerPropertiesTopic);
-                this.subscribeChannel(this.applyConfigTopic);
-                this.subscribeChannel(this.actionAlarmTopic);
-                if (ONLY_TEST_CONNECTION) {
-                    l.info("Connection test successful!");
-                    process.exit(0);
-                }
-
-                l.debug("Published introspection " + DeviceService.baseIntrospection + this.customIntrospections);
-                await this.sendStringMessage(
-                    this.introspectionTopic,
-                    DeviceService.baseIntrospection + this.customIntrospections,
-                    { qos: 2 },
-                );
-                // Empty properties cache
-                l.debug("Published empty cache");
-                await this.sendStringMessage(this.empyCacheTopic, "1", {
-                    qos: 2,
-                });
-
-                l.debug("Published configuration");
-                await this.sendStringMessage(
-                    this.configTopic,
-                    this.serializeMessage({
-                        v: JSON.stringify(this.lastConfig),
-                        t: Date.now(),
-                    }),
-                    { qos: 2 },
-                );
-
-                this.throttledUpdateAvailableTags();
-
-                if (this.dataInterface.config) {
-                    this.dataInterface.config.subscribedTopics.forEach((topic, topicName) => {
-                        this.subscribeChannel(this.licenseData.realm + "/" + this.licenseData.logicalId + topicName);
-                    });
-                }
-
-                this.setReady(true);
-                l.info("Ready to transmit!");
-
-                DataSimulator.clear();
-                if (this._deviceConfig.simulateTags) {
-                    this._deviceConfig.availableTags.forEach((value) => {
-                        if (value.simulation === null) {
-                            return;
-                        }
-                        new DataSimulator(
-                            value.name,
-                            value.type,
-                            async (t, v, ts) => {
-                                if (this.isReady()) {
-                                    return this._internalPost([{ tagName: t, value: v, timestamp: ts }], true);
-                                }
-                                return false;
-                            },
-                            value.simulation,
-                        );
-                    });
-                    if (this._deviceConfig.simulateAlarms) {
-                        this._deviceConfig.availableAlarms.forEach((value) => {
-                            new AlarmSimulator(value, async (data: AlarmData) => {
-                                if (this.isReady()) {
-                                    return this.postAlarm(data);
-                                }
-                                return false;
-                            });
-                        });
+                    await this.subscribeChannel(this.consumerPropertiesTopic);
+                    await this.subscribeChannel(this.applyConfigTopic);
+                    await this.subscribeChannel(this.actionAlarmTopic);
+                    if (ONLY_TEST_CONNECTION) {
+                        l.info("Connection test successful!");
+                        process.exit(0);
                     }
-                }
 
-                resolve(true);
+                    l.debug("Published introspection " + DeviceService.baseIntrospection + this.customIntrospections);
+                    await this.sendStringMessage(
+                        this.introspectionTopic,
+                        DeviceService.baseIntrospection + this.customIntrospections,
+                        { qos: 2 },
+                    );
+                    // Empty properties cache
+                    l.debug("Published empty cache");
+                    await this.sendStringMessage(this.empyCacheTopic, "1", {
+                        qos: 2,
+                    });
+
+                    l.debug("Published configuration");
+                    await this.sendStringMessage(
+                        this.configTopic,
+                        this.serializeMessage({
+                            v: JSON.stringify(this.lastConfig),
+                            t: Date.now(),
+                        }),
+                        { qos: 2 },
+                    );
+
+                    this.throttledUpdateAvailableTags();
+
+                    if (this.dataInterface.config) {
+                        for (const [topicName, topic] of this.dataInterface.config.subscribedTopics) {
+                            await this.subscribeChannel(this.licenseData.realm + "/" + this.licenseData.logicalId + topicName);
+                        }
+                    }
+
+                    this.setReady(true);
+                    l.info("Ready to transmit!");
+
+                    DataSimulator.clear();
+                    if (this._deviceConfig.simulateTags) {
+                        this._deviceConfig.availableTags.forEach((value) => {
+                            if (value.simulation === null) {
+                                return;
+                            }
+                            new DataSimulator(
+                                value.name,
+                                value.type,
+                                async (t, v, ts) => {
+                                    if (this.isReady()) {
+                                        return this._internalPost([{ tagName: t, value: v, timestamp: ts }], true);
+                                    }
+                                    return false;
+                                },
+                                value.simulation,
+                            );
+                        });
+                        if (this._deviceConfig.simulateAlarms) {
+                            this._deviceConfig.availableAlarms.forEach((value) => {
+                                new AlarmSimulator(value, async (data: AlarmData) => {
+                                    if (this.isReady()) {
+                                        return this.postAlarm(data);
+                                    }
+                                    return false;
+                                });
+                            });
+                        }
+                    }
+
+                    connected = true;
+                    resolve(true);
+                } catch (err) {
+                    l.error("Error during mqtt connection setup:");
+                    l.error(err);
+                    reject(err);
+                }
             });
 
             this.mqttClient.on("close", () => {
