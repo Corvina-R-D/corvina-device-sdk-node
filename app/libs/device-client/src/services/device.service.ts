@@ -23,6 +23,7 @@ import { buffer } from "stream/consumers";
 //import { Manager } from "mqtt-jsonl-store"
 import levelStore from "mqtt-level-store";
 import { urlToHttpOptions } from "url";
+import { OnModuleDestroy } from "@nestjs/common";
 
 const x509 = require("x509.js");
 
@@ -65,12 +66,16 @@ export interface DeviceStatus {
 /**
  * Manages the device identity and communication with the cloud
  */
-export class DeviceService extends EventEmitter {
+export class DeviceService extends EventEmitter implements OnModuleDestroy {
     protected inited: boolean;
     protected initPending: Promise<boolean>;
     protected readyToTransmit: boolean;
     protected licenseData: LicenseData;
     protected mqttClient: MqttClient;
+    protected clientKey: string;
+    protected clientCrt: string;
+    protected applyConfigTimeout: NodeJS.Timeout;
+    protected applyConfigReconnectTimeout: NodeJS.Timeout;
 
     protected msgSentStats = 0;
     protected byteSentStats = 0;
@@ -165,6 +170,14 @@ export class DeviceService extends EventEmitter {
     public reinit(deviceConfig: DeviceConfig, doInit = false): DeviceConfig {
         this.inited = false;
         this.readyToTransmit = false;
+        if (this.applyConfigTimeout) {
+            clearTimeout(this.applyConfigTimeout);
+            this.applyConfigTimeout = null;
+        }
+        if (this.applyConfigReconnectTimeout) {
+            clearTimeout(this.applyConfigReconnectTimeout);
+            this.applyConfigReconnectTimeout = null;
+        }
         if (this.mqttClient) {
             l.debug("Going to end mqtt client");
             this.mqttClient.end(true);
@@ -183,6 +196,23 @@ export class DeviceService extends EventEmitter {
         this.axios = new LicensesAxiosInstance(this._deviceConfig.pairingEndpoint, this._deviceConfig.activationKey);
         this.init();
         return this._deviceConfig;
+    }
+
+    public onModuleDestroy() {
+        l.info("OnModuleDestroy: ending MQTT client");
+        if (this.applyConfigTimeout) {
+            clearTimeout(this.applyConfigTimeout);
+            this.applyConfigTimeout = null;
+        }
+        if (this.applyConfigReconnectTimeout) {
+            clearTimeout(this.applyConfigReconnectTimeout);
+            this.applyConfigReconnectTimeout = null;
+        }
+        if (this.mqttClient) {
+            this.mqttClient.end(true);
+            this.mqttClient = null;
+        }
+        DataSimulator.clear();
     }
 
     public isInited() {
@@ -248,16 +278,43 @@ export class DeviceService extends EventEmitter {
         l.debug("Applied config done!");
 
         this.lastConfig = config;
-        setTimeout(async () => {
-            l.debug("Going to end mqtt client");
-            await this.mqttClient.end();
-            // await this.messageStore.open();
-            setTimeout(
-                async () =>
-                    await this.mqttClient.reconnect({
-                        incomingStore: this.messageStore?.incoming,
-                        outgoingStore: this.messageStore?.outgoing,
-                    }),
+
+        if (this.applyConfigTimeout) {
+            clearTimeout(this.applyConfigTimeout);
+        }
+        if (this.applyConfigReconnectTimeout) {
+            clearTimeout(this.applyConfigReconnectTimeout);
+        }
+
+        this.applyConfigTimeout = setTimeout(async () => {
+            this.applyConfigTimeout = null;
+            if (this.mqttClient) {
+                l.debug("Going to end mqtt client");
+                this.mqttClient.end(true);
+                this.mqttClient = null;
+            }
+            this.applyConfigReconnectTimeout = setTimeout(
+                async () => {
+                    this.applyConfigReconnectTimeout = null;
+                    try {
+                        await this.connectClient(
+                            this.licenseData.brokerUrls[this.lastTriedBrokerEndpoint % this.licenseData.brokerUrls.length],
+                            this.clientKey,
+                            this.clientCrt,
+                        );
+                    } catch (e) {
+                        l.error("Error reconnecting after config change:");
+                        l.error(e);
+                        if (this.mqttClient) {
+                            l.debug("Going to end mqtt client after failed reconnect");
+                            this.mqttClient.end(true);
+                            this.mqttClient = null;
+                        }
+                        this.initPending = null;
+                        this.inited = false;
+                        this.init();
+                    }
+                },
                 1000,
             );
         }, 0);
@@ -319,89 +376,99 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
 
             l.debug("MQTT client created");
 
+            let connected = false;
             this.mqttClient.on("connect", async (v) => {
-                l.info(`Successfully connected to mqtt broker! ${JSON.stringify(v)}`);
+                try {
+                    l.info(`Successfully connected to mqtt broker! ${JSON.stringify(v)}`);
 
-                this.subscribeChannel(this.consumerPropertiesTopic);
-                this.subscribeChannel(this.applyConfigTopic);
-                this.subscribeChannel(this.actionAlarmTopic);
-                if (ONLY_TEST_CONNECTION) {
-                    l.info("Connection test successful!");
-                    process.exit(0);
-                }
-
-                l.debug("Published introspection " + DeviceService.baseIntrospection + this.customIntrospections);
-                await this.sendStringMessage(
-                    this.introspectionTopic,
-                    DeviceService.baseIntrospection + this.customIntrospections,
-                    { qos: 2 },
-                );
-                // Empty properties cache
-                l.debug("Published empty cache");
-                await this.sendStringMessage(this.empyCacheTopic, "1", {
-                    qos: 2,
-                });
-
-                l.debug("Published configuration");
-                await this.sendStringMessage(
-                    this.configTopic,
-                    this.serializeMessage({
-                        v: JSON.stringify(this.lastConfig),
-                        t: Date.now(),
-                    }),
-                    { qos: 2 },
-                );
-
-                this.throttledUpdateAvailableTags();
-
-                if (this.dataInterface.config) {
-                    this.dataInterface.config.subscribedTopics.forEach((topic, topicName) => {
-                        this.subscribeChannel(this.licenseData.realm + "/" + this.licenseData.logicalId + topicName);
-                    });
-                }
-
-                this.setReady(true);
-                l.info("Ready to transmit!");
-
-                DataSimulator.clear();
-                if (this._deviceConfig.simulateTags) {
-                    this._deviceConfig.availableTags.forEach((value) => {
-                        if (value.simulation === null) {
-                            return;
-                        }
-                        new DataSimulator(
-                            value.name,
-                            value.type,
-                            async (t, v, ts) => {
-                                if (this.isReady()) {
-                                    return this._internalPost([{ tagName: t, value: v, timestamp: ts }], true);
-                                }
-                                return false;
-                            },
-                            value.simulation,
-                        );
-                    });
-                    if (this._deviceConfig.simulateAlarms) {
-                        this._deviceConfig.availableAlarms.forEach((value) => {
-                            new AlarmSimulator(value, async (data: AlarmData) => {
-                                if (this.isReady()) {
-                                    return this.postAlarm(data);
-                                }
-                                return false;
-                            });
-                        });
+                    await this.subscribeChannel(this.consumerPropertiesTopic);
+                    await this.subscribeChannel(this.applyConfigTopic);
+                    await this.subscribeChannel(this.actionAlarmTopic);
+                    if (ONLY_TEST_CONNECTION) {
+                        l.info("Connection test successful!");
+                        process.exit(0);
                     }
-                }
 
-                resolve(true);
+                    l.debug("Published introspection " + DeviceService.baseIntrospection + this.customIntrospections);
+                    await this.sendStringMessage(
+                        this.introspectionTopic,
+                        DeviceService.baseIntrospection + this.customIntrospections,
+                        { qos: 2 },
+                    );
+                    // Empty properties cache
+                    l.debug("Published empty cache");
+                    await this.sendStringMessage(this.empyCacheTopic, "1", {
+                        qos: 2,
+                    });
+
+                    l.debug("Published configuration");
+                    await this.sendStringMessage(
+                        this.configTopic,
+                        this.serializeMessage({
+                            v: JSON.stringify(this.lastConfig),
+                            t: Date.now(),
+                        }),
+                        { qos: 2 },
+                    );
+
+                    this.throttledUpdateAvailableTags();
+
+                    if (this.dataInterface.config) {
+                        for (const [topicName] of this.dataInterface.config.subscribedTopics) {
+                            await this.subscribeChannel(this.licenseData.realm + "/" + this.licenseData.logicalId + topicName);
+                        }
+                    }
+
+                    this.setReady(true);
+                    l.info("Ready to transmit!");
+
+                    DataSimulator.clear();
+                    if (this._deviceConfig.simulateTags) {
+                        this._deviceConfig.availableTags.forEach((value) => {
+                            if (value.simulation === null) {
+                                return;
+                            }
+                            new DataSimulator(
+                                value.name,
+                                value.type,
+                                async (t, v, ts) => {
+                                    if (this.isReady()) {
+                                        return this._internalPost([{ tagName: t, value: v, timestamp: ts }], true);
+                                    }
+                                    return false;
+                                },
+                                value.simulation,
+                            );
+                        });
+                        if (this._deviceConfig.simulateAlarms) {
+                            this._deviceConfig.availableAlarms.forEach((value) => {
+                                new AlarmSimulator(value, async (data: AlarmData) => {
+                                    if (this.isReady()) {
+                                        return this.postAlarm(data);
+                                    }
+                                    return false;
+                                });
+                            });
+                        }
+                    }
+
+                    connected = true;
+                    resolve(true);
+                } catch (err) {
+                    l.error("Error during mqtt connection setup:");
+                    l.error(err);
+                    reject(err);
+                }
             });
 
             this.mqttClient.on("close", () => {
+                this.setReady(false);
                 DataSimulator.clear();
                 l.warn("Stream closed!");
             });
 
             this.mqttClient.on("reconnect", () => {
+                this.setReady(false);
                 DataSimulator.clear();
                 l.warn("Stream reconnected!");
             });
@@ -409,7 +476,9 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
             this.mqttClient.on("error", (error) => {
                 l.error(error, "Stream error!");
                 this.lastTriedBrokerEndpoint++;
-                reject(error);
+                if (!connected) {
+                    reject(error);
+                }
             });
 
             this.mqttClient.on("message", async (topic, message) => {
@@ -470,6 +539,10 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
 
     private subscribeChannel(channel: string): Promise<any> {
         return new Promise((resolve, reject) => {
+            if (!this.mqttClient) {
+                reject(new Error("MQTT client is null"));
+                return;
+            }
             this.mqttClient.subscribe(channel, function (err) {
                 if (!err) {
                     resolve(true);
@@ -485,6 +558,10 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
         l.debug("Going to publish %s", channel);
 
         return new Promise((resolve, reject) => {
+            if (!this.mqttClient) {
+                reject(new Error("MQTT client is null"));
+                return;
+            }
             this.mqttClient.publish(channel, message, options, (err) => {
                 if (!err) {
                     resolve(true);
@@ -577,11 +654,14 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
             this.configTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/configuration`;
             this.availableTagsTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/availableTags`;
 
+            this.clientKey = csr.clientKey;
+            this.clientCrt = crt.client_crt;
+
             // connect mqtt
             await this.connectClient(
                 this.licenseData.brokerUrls[this.lastTriedBrokerEndpoint % this.licenseData.brokerUrls.length],
-                csr.clientKey,
-                crt.client_crt,
+                this.clientKey,
+                this.clientCrt,
             );
         } catch (err) {
             this.inited = false;
@@ -791,6 +871,10 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
     }
 
     async postAlarm(alarmData: AlarmData): Promise<boolean> {
+        if (!this.mqttClient || !this.readyToTransmit) {
+            l.warn("Cannot post alarm: MQTT client not connected or not ready");
+            return false;
+        }
         const payload = this.serializeMessage({ t: Date.now(), v: alarmData });
         const topic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.DeviceAlarm/a`;
         l.debug("Going to send alarm ");
