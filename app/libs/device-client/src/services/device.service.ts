@@ -23,6 +23,7 @@ import { buffer } from "stream/consumers";
 //import { Manager } from "mqtt-jsonl-store"
 import levelStore from "mqtt-level-store";
 import { urlToHttpOptions } from "url";
+import { OnModuleDestroy } from "@nestjs/common";
 
 const x509 = require("x509.js");
 
@@ -65,12 +66,14 @@ export interface DeviceStatus {
 /**
  * Manages the device identity and communication with the cloud
  */
-export class DeviceService extends EventEmitter {
+export class DeviceService extends EventEmitter implements OnModuleDestroy {
     protected inited: boolean;
     protected initPending: Promise<boolean>;
     protected readyToTransmit: boolean;
     protected licenseData: LicenseData;
     protected mqttClient: MqttClient;
+    protected clientKey: string;
+    protected clientCrt: string;
 
     protected msgSentStats = 0;
     protected byteSentStats = 0;
@@ -185,6 +188,15 @@ export class DeviceService extends EventEmitter {
         return this._deviceConfig;
     }
 
+    public onModuleDestroy() {
+        l.info("OnModuleDestroy: ending MQTT client");
+        if (this.mqttClient) {
+            this.mqttClient.end(true);
+            this.mqttClient = null;
+        }
+        DataSimulator.clear();
+    }
+
     public isInited() {
         return this.inited;
     }
@@ -249,15 +261,27 @@ export class DeviceService extends EventEmitter {
 
         this.lastConfig = config;
         setTimeout(async () => {
-            l.debug("Going to end mqtt client");
-            await this.mqttClient.end();
-            // await this.messageStore.open();
+            if (this.mqttClient) {
+                l.debug("Going to end mqtt client");
+                this.mqttClient.end(true);
+                this.mqttClient = null;
+            }
             setTimeout(
-                async () =>
-                    await this.mqttClient.reconnect({
-                        incomingStore: this.messageStore?.incoming,
-                        outgoingStore: this.messageStore?.outgoing,
-                    }),
+                async () => {
+                    try {
+                        await this.connectClient(
+                            this.licenseData.brokerUrls[this.lastTriedBrokerEndpoint % this.licenseData.brokerUrls.length],
+                            this.clientKey,
+                            this.clientCrt,
+                        );
+                    } catch (e) {
+                        l.error("Error reconnecting after config change:");
+                        l.error(e);
+                        this.initPending = null;
+                        this.inited = false;
+                        this.init();
+                    }
+                },
                 1000,
             );
         }, 0);
@@ -319,7 +343,9 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
 
             l.debug("MQTT client created");
 
+            let connected = false;
             this.mqttClient.on("connect", async (v) => {
+                connected = true;
                 l.info(`Successfully connected to mqtt broker! ${JSON.stringify(v)}`);
 
                 this.subscribeChannel(this.consumerPropertiesTopic);
@@ -397,11 +423,13 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
             });
 
             this.mqttClient.on("close", () => {
+                this.setReady(false);
                 DataSimulator.clear();
                 l.warn("Stream closed!");
             });
 
             this.mqttClient.on("reconnect", () => {
+                this.setReady(false);
                 DataSimulator.clear();
                 l.warn("Stream reconnected!");
             });
@@ -409,7 +437,9 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
             this.mqttClient.on("error", (error) => {
                 l.error(error, "Stream error!");
                 this.lastTriedBrokerEndpoint++;
-                reject(error);
+                if (!connected) {
+                    reject(error);
+                }
             });
 
             this.mqttClient.on("message", async (topic, message) => {
@@ -470,6 +500,10 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
 
     private subscribeChannel(channel: string): Promise<any> {
         return new Promise((resolve, reject) => {
+            if (!this.mqttClient) {
+                reject(new Error("MQTT client is null"));
+                return;
+            }
             this.mqttClient.subscribe(channel, function (err) {
                 if (!err) {
                     resolve(true);
@@ -485,6 +519,10 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
         l.debug("Going to publish %s", channel);
 
         return new Promise((resolve, reject) => {
+            if (!this.mqttClient) {
+                reject(new Error("MQTT client is null"));
+                return;
+            }
             this.mqttClient.publish(channel, message, options, (err) => {
                 if (!err) {
                     resolve(true);
@@ -577,11 +615,14 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
             this.configTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/configuration`;
             this.availableTagsTopic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.Config/availableTags`;
 
+            this.clientKey = csr.clientKey;
+            this.clientCrt = crt.client_crt;
+
             // connect mqtt
             await this.connectClient(
                 this.licenseData.brokerUrls[this.lastTriedBrokerEndpoint % this.licenseData.brokerUrls.length],
-                csr.clientKey,
-                crt.client_crt,
+                this.clientKey,
+                this.clientCrt,
             );
         } catch (err) {
             this.inited = false;
@@ -791,6 +832,10 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
     }
 
     async postAlarm(alarmData: AlarmData): Promise<boolean> {
+        if (!this.mqttClient || !this.readyToTransmit) {
+            l.warn("Cannot post alarm: MQTT client not connected or not ready");
+            return false;
+        }
         const payload = this.serializeMessage({ t: Date.now(), v: alarmData });
         const topic = `${this.licenseData.realm}/${this.licenseData.logicalId}/com.corvina.control.pub.DeviceAlarm/a`;
         l.debug("Going to send alarm ");
