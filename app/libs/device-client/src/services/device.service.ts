@@ -305,6 +305,11 @@ export class DeviceService extends EventEmitter implements OnModuleDestroy {
                     } catch (e) {
                         l.error("Error reconnecting after config change:");
                         l.error(e);
+                        if (this.mqttClient) {
+                            l.debug("Going to end mqtt client after failed reconnect");
+                            this.mqttClient.end(true);
+                            this.mqttClient = null;
+                        }
                         this.initPending = null;
                         this.inited = false;
                         this.init();
