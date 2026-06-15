@@ -414,7 +414,7 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                     this.throttledUpdateAvailableTags();
 
                     if (this.dataInterface.config) {
-                        for (const [topicName, topic] of this.dataInterface.config.subscribedTopics) {
+                        for (const [topicName] of this.dataInterface.config.subscribedTopics) {
                             await this.subscribeChannel(this.licenseData.realm + "/" + this.licenseData.logicalId + topicName);
                         }
                     }
