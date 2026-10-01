@@ -59,7 +59,7 @@ jest.mock("./licensesaxiosinstance", () => ({
             platformPairingApiUrl: "http://pairing",
             brokerUrls: ["mqtts://broker:8883"],
         })),
-        doPairing: mockDoPairing,
+        doPairing: () => mockDoPairing(),
         verify: jest.fn(async () => true),
     })),
 }));
