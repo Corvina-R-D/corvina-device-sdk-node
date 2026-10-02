@@ -76,6 +76,7 @@ export class DeviceService extends EventEmitter implements OnModuleDestroy {
     protected clientCrt: string;
     protected applyConfigTimeout: NodeJS.Timeout;
     protected applyConfigReconnectTimeout: NodeJS.Timeout;
+    protected certRenewTimeout: NodeJS.Timeout;
 
     protected msgSentStats = 0;
     protected byteSentStats = 0;
@@ -178,6 +179,7 @@ export class DeviceService extends EventEmitter implements OnModuleDestroy {
             clearTimeout(this.applyConfigReconnectTimeout);
             this.applyConfigReconnectTimeout = null;
         }
+        this.clearCertRenewTimeout();
         if (this.mqttClient) {
             l.debug("Going to end mqtt client");
             this.mqttClient.end(true);
@@ -208,6 +210,7 @@ export class DeviceService extends EventEmitter implements OnModuleDestroy {
             clearTimeout(this.applyConfigReconnectTimeout);
             this.applyConfigReconnectTimeout = null;
         }
+        this.clearCertRenewTimeout();
         if (this.mqttClient) {
             this.mqttClient.end(true);
             this.mqttClient = null;
@@ -354,8 +357,60 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
 -----END CERTIFICATE-----`;
     }
 
+    private clearCertRenewTimeout() {
+        if (this.certRenewTimeout) {
+            clearTimeout(this.certRenewTimeout);
+            this.certRenewTimeout = null;
+        }
+    }
+
+    // Schedule a new pairing when 80% of the certificate lifetime has elapsed, so that a fresh
+    // certificate is obtained before the broker starts rejecting the current one
+    private scheduleCertRenewal(crt: string) {
+        this.clearCertRenewTimeout();
+        const { notBefore, notAfter } = x509.parseCert(crt);
+        const validFrom = new Date(notBefore).getTime();
+        const validTo = new Date(notAfter).getTime();
+        if (isNaN(validFrom) || isNaN(validTo)) {
+            l.warn("Cannot parse certificate validity (%s - %s), automatic renewal disabled", notBefore, notAfter);
+            return;
+        }
+        const renewAt = validFrom + 0.8 * (validTo - validFrom);
+        // setTimeout delays are limited to 2^31-1 ms: longer delays are re-scheduled when the timer fires
+        const delay = Math.min(Math.max(renewAt - Date.now(), 60 * 1000), 2 ** 31 - 1);
+        l.info("Certificate valid until %s, renewal scheduled in %d secs", notAfter, Math.round(delay / 1000));
+        this.certRenewTimeout = setTimeout(() => {
+            this.certRenewTimeout = null;
+            if (Date.now() < renewAt) {
+                this.scheduleCertRenewal(crt);
+                return;
+            }
+            this.renewIdentity("certificate is about to expire");
+        }, delay);
+    }
+
+    // Drop the current mqtt connection and redo the pairing to obtain a new certificate
+    private renewIdentity(reason: string) {
+        l.warn("Renewing device certificate: %s", reason);
+        this.clearCertRenewTimeout();
+        if (this.applyConfigReconnectTimeout) {
+            clearTimeout(this.applyConfigReconnectTimeout);
+            this.applyConfigReconnectTimeout = null;
+        }
+        if (this.mqttClient) {
+            l.debug("Going to end mqtt client");
+            this.mqttClient.end(true);
+            this.mqttClient = null;
+        }
+        this.setReady(false);
+        DataSimulator.clear();
+        this.inited = false;
+        this.init();
+    }
+
     private connectClient(broker_url: string, key: string, crt: string): Promise<any> {
         l.info("Connecting to mqtt broker %s", broker_url);
+        this.scheduleCertRenewal(crt);
 
         return new Promise(async (resolve, reject) => {
             const mqttClientOptions: IClientOptions = {};
@@ -372,7 +427,8 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
             mqttClientOptions.incomingStore = this.messageStore?.incoming;
             mqttClientOptions.outgoingStore = this.messageStore?.outgoing;
 
-            this.mqttClient = mqtt.connect(broker_url, mqttClientOptions);
+            const client = mqtt.connect(broker_url, mqttClientOptions);
+            this.mqttClient = client;
 
             l.debug("MQTT client created");
 
@@ -478,6 +534,12 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                 this.lastTriedBrokerEndpoint++;
                 if (!connected) {
                     reject(error);
+                } else if (
+                    (error as NodeJS.ErrnoException).code?.includes("CERTIFICATE_EXPIRED") &&
+                    this.mqttClient === client
+                ) {
+                    // the automatic reconnection would keep using the expired certificate: pair again instead
+                    this.renewIdentity("certificate expired");
                 }
             });
 
