@@ -23,7 +23,6 @@ import { buffer } from "stream/consumers";
 //import { Manager } from "mqtt-jsonl-store"
 import levelStore from "mqtt-level-store";
 import { urlToHttpOptions } from "url";
-import { OnModuleDestroy } from "@nestjs/common";
 
 const x509 = require("x509.js");
 
@@ -66,7 +65,7 @@ export interface DeviceStatus {
 /**
  * Manages the device identity and communication with the cloud
  */
-export class DeviceService extends EventEmitter implements OnModuleDestroy {
+export class DeviceService extends EventEmitter {
     protected inited: boolean;
     protected initPending: Promise<boolean>;
     protected readyToTransmit: boolean;
@@ -200,6 +199,7 @@ export class DeviceService extends EventEmitter implements OnModuleDestroy {
         return this._deviceConfig;
     }
 
+    /** NestJS lifecycle hook, invoked by Nest when used through DeviceClientModule */
     public onModuleDestroy() {
         l.info("OnModuleDestroy: ending MQTT client");
         if (this.applyConfigTimeout) {

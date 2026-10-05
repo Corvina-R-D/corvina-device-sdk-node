@@ -25,6 +25,8 @@ The `DeviceRunnerService` is responsible for translating the environment configu
 
 ### Usage in a [Nestjs](https://nestjs.com) application
 
+NestJS is optional: `@nestjs/common`, `@nestjs/config`, `reflect-metadata` and `rxjs` are optional peer dependencies, only needed when importing `@corvina/device-client/device.module`.
+
 In your app module, import the device client module:
 
 ```ts

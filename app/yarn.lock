@@ -514,6 +514,15 @@ __metadata:
     "@nestjs/config": ^4.0.3
     reflect-metadata: ^0.2.2
     rxjs: ^7.8.2
+  peerDependenciesMeta:
+    "@nestjs/common":
+      optional: true
+    "@nestjs/config":
+      optional: true
+    reflect-metadata:
+      optional: true
+    rxjs:
+      optional: true
   languageName: unknown
   linkType: soft
 
