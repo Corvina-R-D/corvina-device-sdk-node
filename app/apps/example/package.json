@@ -4,6 +4,11 @@
     "description": "Corvina Device Example based on @corvina/device-client",
     "author": "arrigo.zanette@corvina.io",
     "license": "MIT",
+    "files": [
+        "dist/**/*",
+        "bin/**/*",
+        "*.md"
+    ],
     "publishConfig": {
         "access": "public"
     },
@@ -24,8 +29,8 @@
         "./bin/corvina-device-example": "./bin/corvina-device-example.js"
     },
     "scripts": {
-        "build": "tsc -b ./tsconfig.app.json",
-        "prebuild": "rimraf dist",
+        "clean": "node -e \"for (const p of ['dist', 'tsconfig.app.tsbuildinfo']) require('fs').rmSync(p, { recursive: true, force: true, maxRetries: process.platform === 'win32' ? 10 : 0 })\"",
+        "build": "yarn run clean && tsc -b ./tsconfig.app.json",
         "start": "nest start",
         "start:dev": "tsc -b ./tsconfig.app.json && nest start",
         "start:debug": "tsc-watch -b ./tsconfig.app.json  --onSuccess \"nest start\"",

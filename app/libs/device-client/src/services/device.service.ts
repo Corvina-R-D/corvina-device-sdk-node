@@ -34,7 +34,7 @@ interface CSRData {
 
 const ONLY_TEST_CONNECTION = process.env["ONLY_TEST_CONNECTION"] === "true" || false;
 
-export { PostCallback } from "./corvinadatainterface";
+export type { PostCallback } from "./corvinadatainterface";
 
 export interface DeviceConfig {
     activationKey?: string;

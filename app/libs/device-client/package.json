@@ -8,23 +8,17 @@
         "dist/**/*",
         "*.md"
     ],
-    "main": "index.js",
+    "main": "./dist/index.js",
     "exports": {
         ".": "./dist/index.js",
-        "./": "./dist/",
-        "./device.module": "./dist/device.module.js"
+        "./device.module": "./dist/device.module.js",
+        "./*": "./dist/*"
     },
-    "types": "index.d.ts",
-    "typesVersions": {
-        "*": {
-            "*": [
-                "./dist/*"
-            ]
-        }
-    },
+    "types": "./dist/index.d.ts",
     "scripts": {
         "start:dev": "tsc -w",
-        "build": "nest build",
+        "clean": "node -e \"for (const p of ['dist', 'tsconfig.lib.tsbuildinfo']) require('fs').rmSync(p, { recursive: true, force: true, maxRetries: process.platform === 'win32' ? 10 : 0 })\"",
+        "build": "yarn run clean && nest build",
         "prepare": "yarn run build",
         "format": "prettier --write \"src/**/*.ts\"",
         "lint": "tslint -p tsconfig.json -c tslint.json",
@@ -82,7 +76,6 @@
         "eslint-plugin-prettier": "^3.4.1",
         "jest": "^30.3.0",
         "prettier": "^3.8.1",
-        "rimraf": "^6.1.3",
         "source-map-support": "^0.5.21",
         "ts-jest": "^29.4.6",
         "ts-node": "^10.9.2",
@@ -97,6 +90,9 @@
         ],
         "rootDir": "../",
         "testRegex": ".spec.ts$",
+        "setupFiles": [
+            "<rootDir>/device-client/test/jest.setup.ts"
+        ],
         "transform": {
             "^.+\\.(t|j)s$": "ts-jest"
         },
