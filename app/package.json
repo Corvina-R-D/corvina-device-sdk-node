@@ -8,7 +8,6 @@
     "build": "lerna run build",
     "start:dev": "lerna run start:dev --parallel",
     "test": "lerna run test --parallel",
-    "lint": "lerna run lint --parallel",
     "format": "lerna run format --parallel",
     "prepublish": "yarn run build",
     "publish": "yarn run prepublish && lerna publish --no-private"
@@ -17,8 +16,9 @@
     "apps/example",
     "libs/device-client"
   ],
-  "dependencies": {
+  "devDependencies": {
+    "@yarnpkg/types": "^4.0.1",
     "lerna": "^9.0.6"
   },
-  "packageManager": "yarn@3.2.1"
+  "packageManager": "yarn@4.18.1"
 }
