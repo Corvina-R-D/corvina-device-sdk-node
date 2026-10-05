@@ -76,6 +76,7 @@ export class DeviceService extends EventEmitter {
     protected applyConfigTimeout: NodeJS.Timeout;
     protected applyConfigReconnectTimeout: NodeJS.Timeout;
     protected certRenewTimeout: NodeJS.Timeout;
+    protected initRetryTimeout: NodeJS.Timeout;
 
     protected msgSentStats = 0;
     protected byteSentStats = 0;
@@ -179,6 +180,7 @@ export class DeviceService extends EventEmitter {
             this.applyConfigReconnectTimeout = null;
         }
         this.clearCertRenewTimeout();
+        this.clearInitRetryTimeout();
         if (this.mqttClient) {
             l.debug("Going to end mqtt client");
             this.mqttClient.end(true);
@@ -211,11 +213,19 @@ export class DeviceService extends EventEmitter {
             this.applyConfigReconnectTimeout = null;
         }
         this.clearCertRenewTimeout();
+        this.clearInitRetryTimeout();
         if (this.mqttClient) {
             this.mqttClient.end(true);
             this.mqttClient = null;
         }
         DataSimulator.clear();
+    }
+
+    private clearInitRetryTimeout() {
+        if (this.initRetryTimeout) {
+            clearTimeout(this.initRetryTimeout);
+            this.initRetryTimeout = null;
+        }
     }
 
     public isInited() {
@@ -754,7 +764,8 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                     l.debug("No mqtt client to end");
                 }
 
-                setTimeout(() => {
+                this.initRetryTimeout = setTimeout(() => {
+                    this.initRetryTimeout = null;
                     this.init();
                 }, randomRetry * 1000);
             }
