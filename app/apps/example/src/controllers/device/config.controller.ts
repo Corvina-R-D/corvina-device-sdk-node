@@ -1,5 +1,6 @@
 import { Logger, Controller, Injectable, Body, Post, Get } from "@nestjs/common";
-import { DeviceConfig, DeviceService } from "@corvina/device-client";
+import { DeviceService } from "@corvina/device-client";
+import type { DeviceConfig } from "@corvina/device-client";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { DeviceConfigDTO } from "./dto/deviceconfig.dto";
 import { LicenseDataDTO } from "./dto/licensedata.dto";

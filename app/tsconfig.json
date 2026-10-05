@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "node16",
+    "moduleResolution": "node16",
+    "isolatedModules": true,
     "declaration": true,
     "declarationMap": true,
     "removeComments": true,
@@ -13,6 +14,7 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "skipLibCheck": true,
-    "esModuleInterop": true
-  }
+    "esModuleInterop": true,
+    "types": ["node", "jest"],
+  },
 }

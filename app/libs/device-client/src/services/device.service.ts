@@ -23,7 +23,6 @@ import { buffer } from "stream/consumers";
 //import { Manager } from "mqtt-jsonl-store"
 import levelStore from "mqtt-level-store";
 import { urlToHttpOptions } from "url";
-import { OnModuleDestroy } from "@nestjs/common";
 
 const x509 = require("x509.js");
 
@@ -34,7 +33,7 @@ interface CSRData {
 
 const ONLY_TEST_CONNECTION = process.env["ONLY_TEST_CONNECTION"] === "true" || false;
 
-export { PostCallback } from "./corvinadatainterface";
+export type { PostCallback } from "./corvinadatainterface";
 
 export interface DeviceConfig {
     activationKey?: string;
@@ -66,7 +65,7 @@ export interface DeviceStatus {
 /**
  * Manages the device identity and communication with the cloud
  */
-export class DeviceService extends EventEmitter implements OnModuleDestroy {
+export class DeviceService extends EventEmitter {
     protected inited: boolean;
     protected initPending: Promise<boolean>;
     protected readyToTransmit: boolean;
@@ -77,6 +76,7 @@ export class DeviceService extends EventEmitter implements OnModuleDestroy {
     protected applyConfigTimeout: NodeJS.Timeout;
     protected applyConfigReconnectTimeout: NodeJS.Timeout;
     protected certRenewTimeout: NodeJS.Timeout;
+    protected initRetryTimeout: NodeJS.Timeout;
 
     protected msgSentStats = 0;
     protected byteSentStats = 0;
@@ -180,6 +180,7 @@ export class DeviceService extends EventEmitter implements OnModuleDestroy {
             this.applyConfigReconnectTimeout = null;
         }
         this.clearCertRenewTimeout();
+        this.clearInitRetryTimeout();
         if (this.mqttClient) {
             l.debug("Going to end mqtt client");
             this.mqttClient.end(true);
@@ -200,6 +201,7 @@ export class DeviceService extends EventEmitter implements OnModuleDestroy {
         return this._deviceConfig;
     }
 
+    /** NestJS lifecycle hook, invoked by Nest when used through DeviceClientModule */
     public onModuleDestroy() {
         l.info("OnModuleDestroy: ending MQTT client");
         if (this.applyConfigTimeout) {
@@ -211,11 +213,19 @@ export class DeviceService extends EventEmitter implements OnModuleDestroy {
             this.applyConfigReconnectTimeout = null;
         }
         this.clearCertRenewTimeout();
+        this.clearInitRetryTimeout();
         if (this.mqttClient) {
             this.mqttClient.end(true);
             this.mqttClient = null;
         }
         DataSimulator.clear();
+    }
+
+    private clearInitRetryTimeout() {
+        if (this.initRetryTimeout) {
+            clearTimeout(this.initRetryTimeout);
+            this.initRetryTimeout = null;
+        }
     }
 
     public isInited() {
@@ -754,7 +764,8 @@ fLibdXgfUjlbFwApfXoXZsYZMwyFq/HjIKS1pyA=
                     l.debug("No mqtt client to end");
                 }
 
-                setTimeout(() => {
+                this.initRetryTimeout = setTimeout(() => {
+                    this.initRetryTimeout = null;
                     this.init();
                 }, randomRetry * 1000);
             }

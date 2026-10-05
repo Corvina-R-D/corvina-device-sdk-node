@@ -1,9 +1,14 @@
 {
     "name": "@corvina/device-example",
-    "version": "1.5.15",
+    "version": "1.6.0",
     "description": "Corvina Device Example based on @corvina/device-client",
     "author": "arrigo.zanette@corvina.io",
     "license": "MIT",
+    "files": [
+        "dist/**/*",
+        "bin/**/*",
+        "*.md"
+    ],
     "publishConfig": {
         "access": "public"
     },
@@ -24,22 +29,22 @@
         "./bin/corvina-device-example": "./bin/corvina-device-example.js"
     },
     "scripts": {
-        "build": "tsc -b ./tsconfig.app.json",
-        "prebuild": "rimraf dist",
+        "clean": "node -e \"for (const p of ['dist', 'tsconfig.app.tsbuildinfo']) require('fs').rmSync(p, { recursive: true, force: true, maxRetries: process.platform === 'win32' ? 10 : 0 })\"",
+        "build": "yarn run clean && tsc -b ./tsconfig.app.json",
         "start": "nest start",
         "start:dev": "tsc -b ./tsconfig.app.json && nest start",
         "start:debug": "tsc-watch -b ./tsconfig.app.json  --onSuccess \"nest start\"",
         "start:prod": "node dist/main"
     },
     "dependencies": {
-        "@corvina/device-client": "^1.5.15",
+        "@corvina/device-client": "^1.6.0",
         "@nestjs/common": "^11.1.15",
         "@nestjs/config": "^4.0.3",
         "@nestjs/core": "^11.1.15",
         "@nestjs/platform-express": "^11.1.15",
         "@nestjs/swagger": "^11.2.6",
         "@nestjs/terminus": "^11.1.1",
-        "axios": "^1.13.6",
+        "axios": "^1.20.0",
         "nestjs-pino": "^4.6.0",
         "pino": "^10.3.1",
         "pino-http": "^11.0.0",
@@ -56,5 +61,5 @@
         "iot"
     ],
     "bin": "./bin/corvina-device-example.js",
-    "gitHead": "36ebda7e17141d797130713a370bb5981d43df88"
+    "gitHead": "919cf3b700f8a59fae27107111d22053227bd342"
 }
