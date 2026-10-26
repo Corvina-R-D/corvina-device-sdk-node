@@ -1,0 +1,31 @@
+name: Publish
+
+# Registered as trusted publisher on npmjs.com for both packages: keep the filename.
+# Release tag: `1.2.3` (or `v1.2.3`); `1.2.3-beta.1`, marked as pre-release, goes to `beta`.
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  publish:
+    uses: Corvina-R-D/corvina-github-public-actions/.github/workflows/npm-publish.yaml@v5.2
+    with:
+      default-branch: master
+      working-directory: app
+      package-manager: yarn
+      publish-dirs: |
+        - libs/device-client
+        - apps/example
+      version-files: |
+        - libs/device-client/package.json
+        - apps/example/package.json
+        - lerna.json

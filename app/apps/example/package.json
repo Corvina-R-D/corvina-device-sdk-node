@@ -14,7 +14,7 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/Corvina-R-D/corvina-device-sdk-node"
+        "url": "git+https://github.com/Corvina-R-D/corvina-device-sdk-node.git"
     },
     "bugs": {
         "url": "https://github.com/Corvina-R-D/corvina-device-sdk-node"

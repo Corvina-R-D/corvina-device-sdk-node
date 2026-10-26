@@ -8,9 +8,7 @@
     "build": "lerna run build",
     "start:dev": "lerna run start:dev --parallel",
     "test": "lerna run test --parallel",
-    "format": "lerna run format --parallel",
-    "prepublish": "yarn run build",
-    "publish": "yarn run prepublish && lerna publish --no-private"
+    "format": "lerna run format --parallel"
   },
   "workspaces": [
     "apps/example",
