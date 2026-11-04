@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   publish:
-    uses: Corvina-R-D/corvina-github-public-actions/.github/workflows/npm-publish.yaml@v5.2
+    uses: Corvina-R-D/corvina-github-public-actions/.github/workflows/publish-npm.yaml@v5.4
     with:
       default-branch: master
       working-directory: app
