@@ -1,3 +1,6 @@
 node_modules
 *.tsbuildinfo
 .env
+
+# Claude Code settings (may contain credentials)
+.claude/settings*.json
