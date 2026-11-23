@@ -1,7 +1,7 @@
-name: Publish
+name: Publish @corvina/device-client and @corvina/device-example
 
 # Registered as trusted publisher on npmjs.com for both packages: keep the filename.
-# Release tag: `1.2.3` (or `v1.2.3`); `1.2.3-beta.1`, marked as pre-release, goes to `beta`.
+# Release tag: `1.2.3` (no leading `v`); `1.2.3-beta.1`, marked as pre-release, goes to `beta`.
 on:
   release:
     types: [published]
